@@ -53,6 +53,12 @@ pub trait Spanned {
     fn span(&self) -> Span;
 }
 
+impl Spanned for Span {
+    fn span(&self) -> Span {
+        self.clone()
+    }
+}
+
 ///
 /// Something that can be parsed.
 ///

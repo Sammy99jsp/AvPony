@@ -89,10 +89,20 @@ name = "avpony-lang"
 version = "0.1.0"
 dependencies = [
  "ariadne",
+ "avpony-macros",
  "chumsky",
  "swc_common",
  "swc_ecma_ast",
  "swc_ecma_parser",
+ "syn 2.0.65",
+]
+
+[[package]]
+name = "avpony-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
  "syn 2.0.65",
 ]
 
