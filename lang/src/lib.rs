@@ -16,5 +16,7 @@
 //!
 //! ## Building
 //! We are nightly compiler only, so make sure you have the nightly compiler in
-//! your Rustup toolchain: `rustup install nighlty`
+//! your Rustup toolchain: `rustup install +nighlty`
 //!
+
+pub mod utils;
