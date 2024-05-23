@@ -3,17 +3,26 @@
 //!
 
 pub mod number;
+pub mod string;
 
+use ariadne::{Color, ColorGenerator, Fmt, Label};
 use avpony_macros::Spanned;
 
-use self::number::{DivdersBadlyPlaced, InvalidInt, MultipleNumericDividers};
+use self::{
+    number::{DivdersBadlyPlaced, InvalidInt, MultipleNumericDividers},
+    string::{InvalidAsciiCode, InvalidEscapeSequence, InvalidUnicodeCodePoint},
+};
 
+// TODO: Move the hassle-some implementations to an auto-generating macro.
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub enum Error {
     UnexpectedToken(UnexpectedToken),
     InvalidInt(InvalidInt),
     MultipleNumericDividers(MultipleNumericDividers),
     DivdersBadlyPlaced(DivdersBadlyPlaced),
+    InvalidUnicodeCodePoint(InvalidUnicodeCodePoint),
+    InvalidAsciiCode(InvalidAsciiCode),
+    InvalidEscapeSequence(InvalidEscapeSequence),
 }
 
 impl chumsky::Error<char> for self::Error {
@@ -41,6 +50,11 @@ impl chumsky::Error<char> for self::Error {
                 Self::MultipleNumericDividers(err.with_label(label))
             }
             Self::DivdersBadlyPlaced(err) => Self::DivdersBadlyPlaced(err.with_label(label)),
+            Self::InvalidUnicodeCodePoint(err) => {
+                Self::InvalidUnicodeCodePoint(err.with_label(label))
+            }
+            Self::InvalidAsciiCode(err) => Self::InvalidAsciiCode(err.with_label(label)),
+            Self::InvalidEscapeSequence(err) => Self::InvalidEscapeSequence(err.with_label(label)),
         }
     }
 
@@ -62,10 +76,13 @@ impl ErrorI for Error {
 
     fn to_report(self) -> ariadne::Report<'static, super::Span> {
         match self {
-            Error::UnexpectedToken(err) => err.to_report(),
-            Error::InvalidInt(err) => err.to_report(),
-            Error::MultipleNumericDividers(err) => err.to_report(),
-            Error::DivdersBadlyPlaced(err) => err.to_report(),
+            Self::UnexpectedToken(err) => err.to_report(),
+            Self::InvalidInt(err) => err.to_report(),
+            Self::MultipleNumericDividers(err) => err.to_report(),
+            Self::DivdersBadlyPlaced(err) => err.to_report(),
+            Self::InvalidUnicodeCodePoint(err) => err.to_report(),
+            Self::InvalidAsciiCode(err) => err.to_report(),
+            Self::InvalidEscapeSequence(err) => err.to_report(),
         }
     }
 }
@@ -91,6 +108,44 @@ impl ErrorI for UnexpectedToken {
     }
 
     fn to_report(self) -> ariadne::Report<'static, super::Span> {
-        todo!()
+        let mut colors = ColorGenerator::new();
+        let blue = Color::Blue;
+
+        let error_color = colors.next();
+        let mut builder = self
+            .span
+            .clone()
+            .build_report(ariadne::ReportKind::Error)
+            .with_code("S000")
+            .with_message("Syntax Error: Unexpected token")
+            .with_label(
+                Label::new(self.span.clone())
+                    .with_color(error_color)
+                    .with_message(if self.expected.is_empty() {
+                        "Here.".to_string()
+                    } else {
+                        format!(
+                            "Expected one of {} here. Got {}.",
+                            self.expected
+                                .iter()
+                                .map(|ch| format!("`{}`", ch.fg(blue)))
+                                .intersperse(", ".to_string())
+                                .collect::<String>(),
+                            self.found
+                                .map(|ch| format!("`{}`", ch.fg(error_color)))
+                                .unwrap_or(format!("{}", "<EOF>".fg(error_color)))
+                        )
+                    }),
+            );
+
+        if let Some(extra) = self.extra {
+            builder = builder.with_label(
+                Label::new(self.span)
+                    .with_color(colors.next())
+                    .with_message(extra),
+            );
+        }
+
+        builder.finish()
     }
 }
