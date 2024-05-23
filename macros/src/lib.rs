@@ -1,6 +1,7 @@
 #![feature(proc_macro_diagnostic)]
 
 use proc_macro::{Diagnostic, Level, Span};
+use quote::ToTokens;
 use syn::parse_macro_input;
 
 mod spanned;
@@ -41,7 +42,7 @@ pub fn derive_spanned(target: proc_macro::TokenStream) -> proc_macro::TokenStrea
 
     match res {
         Err(()) => Default::default(),
-        Ok(tokens) => tokens,
+        Ok(tokens) => tokens.into_token_stream(),
     }
     .into()
 }
