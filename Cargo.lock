@@ -91,6 +91,7 @@ dependencies = [
  "ariadne",
  "avpony-macros",
  "chumsky",
+ "regex",
  "swc_common",
  "swc_ecma_ast",
  "swc_ecma_parser",
