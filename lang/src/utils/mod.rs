@@ -3,6 +3,7 @@
 //!
 
 pub mod errors;
+pub mod stream;
 
 use std::{fmt::Debug, ops::Range, sync::Arc};
 
@@ -21,8 +22,14 @@ use std::{fmt::Debug, ops::Range, sync::Arc};
 ///
 /// Here, the token `arr` has span (`/some/file,avpony`, 0).
 ///
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Span(Arc<str>, Range<usize>);
+
+impl Span {
+    pub(super) fn new(path: &Arc<str>, range: Range<usize>) -> Self {
+        Self(path.clone(), range)
+    }
+}
 
 impl chumsky::Span for self::Span {
     type Context = Arc<str>;
@@ -45,6 +52,38 @@ impl chumsky::Span for self::Span {
     }
 }
 
+impl ariadne::Span for Span {
+    type SourceId = Arc<str>;
+
+    fn source(&self) -> &Self::SourceId {
+        &self.0
+    }
+
+    fn start(&self) -> usize {
+        self.1.start
+    }
+
+    fn end(&self) -> usize {
+        self.1.end
+    }
+}
+
+impl Span {
+    pub(super) fn build_report(
+        self,
+        kind: ariadne::ReportKind<'static>,
+    ) -> ariadne::ReportBuilder<'_, Self> {
+        ariadne::Report::build(kind, self.0.as_ref(), self.1.start)
+    }
+
+    pub fn relative_range(&self, range: Range<usize>) -> Self {
+        Self(
+            self.0.clone(),
+            (self.1.start + range.start)..(self.1.start + range.end),
+        )
+    }
+}
+
 ///
 /// Retrurns the span of the entirety of
 /// this syntax node.
@@ -62,6 +101,6 @@ impl Spanned for Span {
 ///
 /// Something that can be parsed.
 ///
-pub trait Parseable: Sized + Debug + Clone + Spanned {
+pub trait Parseable: Sized + Debug + Clone + Spanned + PartialEq {
     fn parser() -> impl chumsky::Parser<char, Self, Error = errors::Error>;
 }
