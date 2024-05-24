@@ -20,5 +20,5 @@
 //! your Rustup toolchain: `rustup install +nighlty`
 //!
 
-pub mod utils;
 pub mod lexical;
+pub mod utils;

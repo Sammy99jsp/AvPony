@@ -199,7 +199,10 @@ mod traits {
                         capture: None,
                         or1_token: Default::default(),
                         inputs: syn::punctuated::Punctuated::from_iter([
-                            syn::Pat::Wild(syn::PatWild { attrs: Default::default(), underscore_token: Default::default() }),
+                            syn::Pat::Wild(syn::PatWild {
+                                attrs: Default::default(),
+                                underscore_token: Default::default(),
+                            }),
                             syn::Pat::Ident(syn::PatIdent {
                                 attrs: Default::default(),
                                 by_ref: None,
