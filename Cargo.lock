@@ -96,6 +96,7 @@ dependencies = [
  "swc_ecma_ast",
  "swc_ecma_parser",
  "syn 2.0.65",
+ "unicode-ident",
 ]
 
 [[package]]

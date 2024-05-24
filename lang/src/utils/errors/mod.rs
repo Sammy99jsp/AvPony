@@ -2,6 +2,7 @@
 //! ## Error types.
 //!
 
+pub mod identifier;
 pub mod number;
 pub mod string;
 
@@ -9,6 +10,7 @@ use ariadne::{Color, ColorGenerator, Fmt, Label};
 use avpony_macros::Spanned;
 
 use self::{
+    identifier::ReservedIdentifier,
     number::{DivdersBadlyPlaced, InvalidInt, MultipleNumericDividers},
     string::{InvalidAsciiCode, InvalidEscapeSequence, InvalidUnicodeCodePoint},
 };
@@ -23,6 +25,7 @@ pub enum Error {
     InvalidUnicodeCodePoint(InvalidUnicodeCodePoint),
     InvalidAsciiCode(InvalidAsciiCode),
     InvalidEscapeSequence(InvalidEscapeSequence),
+    ReservedIdentifier(ReservedIdentifier),
 }
 
 impl chumsky::Error<char> for self::Error {
@@ -55,6 +58,7 @@ impl chumsky::Error<char> for self::Error {
             }
             Self::InvalidAsciiCode(err) => Self::InvalidAsciiCode(err.with_label(label)),
             Self::InvalidEscapeSequence(err) => Self::InvalidEscapeSequence(err.with_label(label)),
+            Self::ReservedIdentifier(err) => Self::ReservedIdentifier(err.with_label(label)),
         }
     }
 
@@ -83,6 +87,7 @@ impl ErrorI for Error {
             Self::InvalidUnicodeCodePoint(err) => err.to_report(),
             Self::InvalidAsciiCode(err) => err.to_report(),
             Self::InvalidEscapeSequence(err) => err.to_report(),
+            Self::ReservedIdentifier(err) => err.to_report(),
         }
     }
 }

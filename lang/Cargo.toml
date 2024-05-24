@@ -12,3 +12,4 @@ swc_ecma_parser = "0.144.1"
 syn = { version = "2.0.65", features = ["full"] }
 avpony-macros = { path = "../macros" }
 regex = "1.10.4"
+unicode-ident = "1.0.12"
