@@ -39,7 +39,7 @@ mod structs {
 }
 
 #[allow(non_snake_case)]
-mod traits {
+pub mod traits {
 
     pub mod Parseable {
         use crate::keyword::path as make_path;
@@ -229,7 +229,7 @@ mod traits {
 }
 
 #[allow(non_snake_case)]
-mod macros {
+pub mod macros {
     use super::ident;
 
     pub fn Spanned() -> syn::Path {

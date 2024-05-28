@@ -6,6 +6,8 @@ use syn::parse_macro_input;
 
 mod keyword;
 mod keywords;
+mod punctuation;
+mod punctuations;
 mod spanned;
 
 ///
@@ -91,12 +93,13 @@ pub fn Keyword(
 ///
 /// ### Example
 /// ```ignore
-/// use avpony_macros::Keyword;
 /// use avpony_macros::Keywords;
 ///
 ///                         // All declared keywords will be put in `keywords::KEYWORDS`.
 /// #[Keywords(KEYWORDS)]   // <- You can change the name of the constant here in the parenthesis.
 /// mod keywords {
+///     use avpony_macros::Keyword;
+///     
 ///     /// # `if`
 ///     /// Used to denote `if` blocks (conditional blocks).
 ///     /// ```avpony
@@ -196,4 +199,92 @@ pub fn Keywords(
         }));
 
     kw_mod.into_token_stream().into()
+}
+
+///
+/// ## INTERNAL-ONLY MACRO.
+/// ***
+///
+/// ## #\[Punctuation]
+/// Declares a new piece of punctuation, in a particular category (either `Syntax`, or `Operator`).
+///
+/// ### Example
+/// ```ignore
+/// use avpony_macros::Punctuation;
+///
+/// ///
+/// /// The humble comma, a delimiter reserved for only syntax.
+/// ///
+/// #[Punctuation(',' @ Syntax)]
+/// pub struct Comma;
+///
+/// ///
+/// /// The inquisitive question mark: allowed for any use as (or as part of) an operator/
+/// ///
+/// #[Punctuation('?' @ Operator)]
+/// pub struct QuestionMark;
+/// ```
+#[proc_macro_attribute]
+#[allow(non_snake_case)]
+pub fn Punctuation(
+    args: proc_macro::TokenStream,
+    target: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    punctuation::create_punctuation_for(args, target)
+}
+
+///
+/// ## INTERNAL-ONLY MACRO.
+/// ***
+///
+/// ## #\[Punctuations]
+/// Collects all declared punctuation categories
+/// into a const &str per-category.
+///
+/// ### Example
+/// ```ignore
+/// use avpony_macros::Punctuations;
+///
+///                           // All declared punctuation will be put in `punct::SYNTAX`.
+/// #[Punctuations(Syntax)]   // <- You can add extra categories here, by adding extra categories (e.g. `Syntax, Operator`).
+/// mod punct {
+///     use avpony_macros::Punctuation;
+///     ///
+///     /// The humble comma, a delimiter reserved for only syntax.
+///     ///
+///     #[Punctuation(',' @ Syntax)]
+///     pub struct Comma;
+/// }
+/// ```
+#[proc_macro_attribute]
+#[allow(non_snake_case)]
+pub fn Punctuations(
+    list: proc_macro::TokenStream,
+    target: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    let buckets: syn::punctuated::Punctuated<syn::Ident, syn::Token![,]> =
+        syn::parse_macro_input!(list with syn::punctuated::Punctuated::parse_separated_nonempty);
+    let mut module: syn::ItemMod = syn::parse_macro_input!(target);
+
+    let consts: Vec<_> = punctuations::collect_punctuation_structs(
+        module
+            .content
+            .as_ref()
+            .map(|(_, items)| {
+                items.iter().filter_map(|item| match item {
+                    syn::Item::Struct(s) => Some(s),
+                    _ => None,
+                })
+            })
+            .into_iter()
+            .flatten(),
+        buckets.iter(),
+    )
+    .collect();
+
+    if let Some((_, items)) = module.content.as_mut() {
+        items.extend(consts.into_iter().map(syn::Item::Const))
+    }
+
+    module.into_token_stream().into()
 }
