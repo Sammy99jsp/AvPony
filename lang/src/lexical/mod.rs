@@ -14,6 +14,7 @@ pub mod keyword;
 pub mod number;
 pub mod string;
 pub mod boolean;
+pub mod punctuation;
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub enum Literal {

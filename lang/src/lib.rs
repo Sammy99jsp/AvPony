@@ -22,3 +22,4 @@
 
 pub mod lexical;
 pub mod utils;
+pub mod syntax;
