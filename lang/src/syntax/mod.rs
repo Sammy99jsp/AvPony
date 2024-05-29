@@ -37,6 +37,7 @@ use crate::{
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub enum Expr {
     Literal(lexical::Literal),
+    Identifier(lexical::Identifier),
     Array(array::Array),
     Map(map::Map),
 }
@@ -47,6 +48,7 @@ impl Parseable for Expr {
             choice((
                 lexical::Literal::parser().map(Self::Literal),
                 array::Array::parse_with(expr.clone()).map(Self::Array),
+                lexical::Identifier::parser().map(Self::Identifier),
                 map::Map::parse_with(expr.clone()).map(Self::Map)
             ))
         })
