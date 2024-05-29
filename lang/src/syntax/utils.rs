@@ -16,15 +16,15 @@ use crate::utils::{errors::Error, Parseable, Span};
 ///
 /// A sequence of a certain token type,
 /// delimited by certain token.
-/// 
-#[derive(Debug, Clone, Spanned)]
+///
+#[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct Punctuated<Token, Punct> {
-    span: Span,
-    inner: Vec<Token>,
+    pub span: Span,
+    pub inner: Vec<Token>,
     __marker: PhantomData<Punct>,
 }
 
-impl<Token: Parseable, Punct: Parseable> Punctuated<Token, Punct> {
+impl<Token, Punct: Parseable> Punctuated<Token, Punct> {
     pub fn iter(&self) -> impl Iterator<Item = &Token> + '_ {
         self.inner.iter()
     }
@@ -33,8 +33,10 @@ impl<Token: Parseable, Punct: Parseable> Punctuated<Token, Punct> {
         self.inner.iter_mut()
     }
 
-    pub fn with_trailing() -> impl Parser<char, Self, Error = Error> {
-        Token::parser()
+    pub fn trailing_with(
+        inner: impl Parser<char, Token, Error = Error>,
+    ) -> impl Parser<char, Self, Error = Error> {
+        inner
             .padded()
             .then_ignore(just(",").padded())
             .repeated()
@@ -45,12 +47,22 @@ impl<Token: Parseable, Punct: Parseable> Punctuated<Token, Punct> {
             })
     }
 
-    pub fn with_optional_trailing() -> impl Parser<char, Self, Error = Error> {
-        Token::parser()
+    pub fn trailing() -> impl Parser<char, Self, Error = Error>
+    where
+        Token: Parseable,
+    {
+        Self::trailing_with(Token::parser())
+    }
+
+    pub fn optional_trailing_with(
+        inner: impl Parser<char, Token, Error = Error> + Clone,
+    ) -> impl Parser<char, Self, Error = Error> {
+        inner
+            .clone()
             .then_ignore(text::whitespace())
             .then_ignore(just(",").padded())
             .repeated()
-            .then(Token::parser().or_not())
+            .then(inner.or_not())
             .map_with_span(|(mut inner, after), span| Self {
                 span,
                 inner: {
@@ -73,20 +85,29 @@ impl<Token, Punct> IntoIterator for Punctuated<Token, Punct> {
 }
 
 #[cfg(test)]
+impl<Token, Punct, Col> PartialEq<Col> for Punctuated<Token, Punct>
+where
+    Vec<Token>: PartialEq<Col>,
+{
+    fn eq(&self, other: &Col) -> bool {
+        self.inner.eq(other)
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use chumsky::Parser;
 
     use crate::{
         lexical::{number::NumberLit, punctuation},
         syntax::utils::Punctuated,
-        utils::stream::SourceFile,
+        utils::{stream::SourceFile, Parseable},
     };
 
     #[test]
     fn with_trailing() {
         let (source, _) = SourceFile::test_file("1.1, 1.3, 2.2 ,");
-        let res =
-            Punctuated::<NumberLit, punctuation::Comma>::with_trailing().parse(source.stream());
+        let res = Punctuated::<NumberLit, punctuation::Comma>::trailing().parse(source.stream());
         assert!(matches!(
             res,
             Ok(Punctuated { inner, .. }) if inner.len() == 3
@@ -96,7 +117,7 @@ mod tests {
     #[test]
     fn with_optional_trailing() {
         let (source, _) = SourceFile::test_file("1.1, 2.2 , 2.2");
-        let res = Punctuated::<NumberLit, punctuation::Comma>::with_optional_trailing()
+        let res = Punctuated::<_, punctuation::Comma>::optional_trailing_with(&NumberLit::parser())
             .parse(source.stream());
         assert!(matches!(
             res,
@@ -104,7 +125,7 @@ mod tests {
         ));
 
         let (source, _) = SourceFile::test_file("1.1");
-        let res = Punctuated::<NumberLit, punctuation::Comma>::with_optional_trailing()
+        let res = Punctuated::<_, punctuation::Comma>::optional_trailing_with(&NumberLit::parser())
             .parse(source.stream());
         assert!(matches!(
             res,
@@ -112,7 +133,7 @@ mod tests {
         ));
 
         let (source, _) = SourceFile::test_file("1.1,");
-        let res = Punctuated::<NumberLit, punctuation::Comma>::with_optional_trailing()
+        let res = Punctuated::<_, punctuation::Comma>::optional_trailing_with(&NumberLit::parser())
             .parse(source.stream());
         assert!(matches!(
             res,
