@@ -27,6 +27,12 @@ mod syntax {
     
     #[Punctuation(';' @ Syntax)]
     pub struct Semicolon;
+    
+    #[Punctuation('.' @ Syntax)]
+    pub struct Dot;
+
+    #[Punctuation('=' @ Syntax)]
+    pub struct Equals;
 }
 
 pub use syntax::*;

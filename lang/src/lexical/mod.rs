@@ -16,6 +16,8 @@ pub mod string;
 pub mod boolean;
 pub mod punctuation;
 
+pub use identifier::Identifier;
+
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub enum Literal {
     Number(NumberLit),

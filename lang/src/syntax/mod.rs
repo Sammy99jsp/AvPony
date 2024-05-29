@@ -9,7 +9,7 @@
 //! * *Literals*: number (Int, Float), string (`"`-only), and boolean (`true`, `false`) literals.
 //! * *Identifiers*: <ident>
 //! * *Array-like*: `[ (<expr>,)* ]` (with optional trailing); Empty: `[]`
-//! * *Maps*: `( (<expr key>: <expr value>),* )` (with optional training); Empty: `()` -- // TODO: REVIEW
+//! * *Maps*: `( (.<ident key>: <expr value>),* )` (with optional training); Empty: `()` -- // TODO: REVIEW
 //! * *Member access*: `<expr reciever>.<ident member>`
 //! * *Indexing*: `<expr>[<expr index>]`
 //! * *Function calls*: `<expr callee>((<expr args>),*)` (with optional training)
@@ -24,6 +24,7 @@
 
 pub mod array;
 pub mod utils;
+pub mod map;
 
 use avpony_macros::Spanned;
 use chumsky::{primitive::choice, recursive::recursive, Parser};
@@ -37,6 +38,7 @@ use crate::{
 pub enum Expr {
     Literal(lexical::Literal),
     Array(array::Array),
+    Map(map::Map),
 }
 
 impl Parseable for Expr {
@@ -45,6 +47,7 @@ impl Parseable for Expr {
             choice((
                 lexical::Literal::parser().map(Self::Literal),
                 array::Array::parse_with(expr.clone()).map(Self::Array),
+                map::Map::parse_with(expr.clone()).map(Self::Map)
             ))
         })
     }
