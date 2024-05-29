@@ -39,28 +39,6 @@ pub struct UncheckedIdentifier {
     value: String,
 }
 
-impl Parseable for UncheckedIdentifier {
-    fn parser() -> impl chumsky::Parser<char, Self, Error = Error> {
-        let xid_start = filter::<char, _, _>(|ch: &char| unicode_ident::is_xid_start(*ch));
-        let xid_continue = filter::<char, _, _>(|ch: &char| unicode_ident::is_xid_continue(*ch));
-
-        choice((
-            xid_start
-                .then(xid_continue.repeated())
-                .map_with_span(|(start, continued), span| Self {
-                    span,
-                    value: std::iter::once(start).chain(continued).collect(),
-                }),
-            just("_")
-                .ignore_then(xid_continue.repeated().at_least(1))
-                .map_with_span(|continued, span| Self {
-                    span,
-                    value: std::iter::once('_').chain(continued).collect(),
-                }),
-        ))
-    }
-}
-
 impl UncheckedIdentifier {
     fn parser_cloneable() -> impl chumsky::Parser<char, Self, Error = Error> + Clone {
         let xid_start = filter::<char, _, _>(|ch: &char| unicode_ident::is_xid_start(*ch));
@@ -83,6 +61,13 @@ impl UncheckedIdentifier {
     }
 }
 
+impl Parseable for UncheckedIdentifier {
+    fn parser() -> impl chumsky::Parser<char, Self, Error = Error> {
+        Self::parser_cloneable()
+    }
+}
+
+
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct Identifier {
     span: Span,
@@ -103,13 +88,7 @@ impl Identifier {
 
 impl Parseable for Identifier {
     fn parser() -> impl chumsky::Parser<char, Self, Error = Error> {
-        UncheckedIdentifier::parser().try_map(|UncheckedIdentifier { span, value }, _| {
-            if keyword::is_keyword(&value) {
-                Err(ReservedIdentifier::new(span, value).into())
-            } else {
-                Ok(Self { span, value })
-            }
-        })
+        Self::parser_cloneable()
     }
 }
 
