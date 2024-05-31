@@ -64,8 +64,8 @@ use crate::utils::{
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct StringLit {
-    span: Span,
-    value: String,
+    pub span: Span,
+    pub value: String,
 }
 impl Parseable for StringLit {
     fn parser() -> impl Parser<char, Self, Error = Error> {
@@ -77,6 +77,12 @@ impl Parseable for StringLit {
                 parts.iter().for_each(|part| part.write_value(&mut value));
                 Self { span, value }
             })
+    }
+}
+
+impl PartialEq<str> for StringLit {
+    fn eq(&self, other: &str) -> bool {
+        self.value == other
     }
 }
 

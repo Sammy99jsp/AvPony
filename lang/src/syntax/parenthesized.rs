@@ -18,8 +18,8 @@ use crate::utils::{errors::Error, Span};
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct Parenthesized {
-    span: Span,
-    inner: Box<super::Expr>,
+    pub span: Span,
+    pub inner: Box<super::Expr>,
 }
 
 impl Parenthesized {

@@ -27,6 +27,7 @@
 //!
 
 pub mod array;
+pub mod index;
 pub mod map;
 pub mod member;
 pub mod parenthesized;
@@ -34,7 +35,7 @@ pub mod utils;
 
 use avpony_macros::Spanned;
 use chumsky::{
-    primitive::{choice, just},
+    primitive::{choice, one_of},
     recursive::recursive,
     Parser,
 };
@@ -53,21 +54,25 @@ pub enum Expr {
     Parenthesised(parenthesized::Parenthesized),
 
     MemberAccess(member::MemberAccess),
+    Indexing(index::Indexing),
 }
 
 impl Parseable for Expr {
     fn parser() -> impl chumsky::Parser<char, Self, Error = Error> {
         recursive(|expr| {
-            let solo = choice((
-                lexical::Literal::parser().map(Self::Literal),
-                array::Array::parse_with(expr.clone()).map(Self::Array),
-                lexical::Identifier::parser().map(Self::Identifier),
-                map::Map::parse_with(expr.clone()).map(Self::Map),
-                parenthesized::Parenthesized::parse_with(expr.clone()).map(Self::Parenthesised),
-            ))
+            let solo = recursive(|_| {
+                choice((
+                    lexical::Literal::parser().map(Self::Literal),
+                    array::Array::parse_with(expr.clone()).map(Self::Array),
+                    lexical::Identifier::parser().map(Self::Identifier),
+                    map::Map::parse_with(expr.clone()).map(Self::Map),
+                    parenthesized::Parenthesized::parse_with(expr.clone()).map(Self::Parenthesised),
+                ))
+            })
             .boxed();
 
             choice((
+                index::Indexing::parse_with(solo.clone()).map(Self::Indexing),
                 member::MemberAccess::parse_with(solo.clone()).map(Self::MemberAccess),
                 solo.clone(),
             ))

@@ -122,15 +122,15 @@ impl Parseable for NumberLit {
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct IntegerLit {
-    span: Span,
-    value: IntType,
+    pub span: Span,
+    pub value: IntType,
     raw_value: String,
 }
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct FloatLit {
-    span: Span,
-    value: FloatType,
+    pub span: Span,
+    pub value: FloatType,
     raw_value: String,
 }
 
