@@ -12,7 +12,7 @@
 //!   * *Array-like*: `[ (<expr>,)* ]` (with optional trailing); Empty: `[]`
 //!   * *Maps*: `( (.<ident key>: <expr value>),* )` (with optional training); Empty: `()` -- // TODO: REVIEW
 //!   * *Parenthesised*: `(` <expr> `)`
-//! 
+//!
 //! * __Compound Expressions__
 //!     * *Member access*: `<expr reciever>.<ident member>`
 //!     * *Indexing*: `<expr>[<expr index>]`
@@ -28,11 +28,16 @@
 
 pub mod array;
 pub mod map;
+pub mod member;
 pub mod parenthesized;
 pub mod utils;
 
 use avpony_macros::Spanned;
-use chumsky::{primitive::choice, recursive::recursive, Parser};
+use chumsky::{
+    primitive::{choice, just},
+    recursive::recursive,
+    Parser,
+};
 
 use crate::{
     lexical,
@@ -46,17 +51,25 @@ pub enum Expr {
     Array(array::Array),
     Map(map::Map),
     Parenthesised(parenthesized::Parenthesized),
+
+    MemberAccess(member::MemberAccess),
 }
 
 impl Parseable for Expr {
     fn parser() -> impl chumsky::Parser<char, Self, Error = Error> {
         recursive(|expr| {
-            choice((
+            let solo = choice((
                 lexical::Literal::parser().map(Self::Literal),
                 array::Array::parse_with(expr.clone()).map(Self::Array),
                 lexical::Identifier::parser().map(Self::Identifier),
                 map::Map::parse_with(expr.clone()).map(Self::Map),
                 parenthesized::Parenthesized::parse_with(expr.clone()).map(Self::Parenthesised),
+            ))
+            .boxed();
+
+            choice((
+                member::MemberAccess::parse_with(solo.clone()).map(Self::MemberAccess),
+                solo.clone(),
             ))
         })
     }
