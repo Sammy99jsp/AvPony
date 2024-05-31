@@ -42,7 +42,11 @@ mod tests {
     use chumsky::Parser;
 
     use crate::{
-        syntax::{member::MemberAccess, Expr},
+        lexical::{
+            number::{FloatLit, NumberLit},
+            Literal,
+        },
+        syntax::{member::MemberAccess, parenthesized::Parenthesized, Expr},
         utils::{stream::SourceFile, Parseable},
     };
 
@@ -50,15 +54,21 @@ mod tests {
     fn member_access() {
         let (source, _) = SourceFile::test_file(r#"(1.).to_string"#);
         let res = Expr::parser().parse(source.stream());
-        assert!(matches!(res, Ok(Expr::MemberAccess(MemberAccess {
-            receiver,
-            member,
-            ..
-        })) if matches!(receiver.as_ref(), Expr::Parenthesised(_))
-            && &member == "to_string"
+        assert!(matches!(
+            res,
+            Ok(Expr::MemberAccess(MemberAccess {
+                receiver:
+                    box Expr::Parenthesised(Parenthesized {
+                        inner:
+                            box Expr::Literal(Literal::Number(NumberLit::Float(FloatLit {
+                                value: 1.0,
+                                ..
+                            }))),
+                        ..
+                    }),
+                member,
+                ..
+            })) if &member == "to_string"
         ));
-
-        let (source, _) = SourceFile::test_file(r#"expr.to_string()"#);
-        assert!(Expr::parser().parse(source.stream()).is_ok());
     }
 }

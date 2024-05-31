@@ -1,4 +1,4 @@
-#![feature(iter_intersperse)]
+#![feature(iter_intersperse, box_patterns)]
 //!
 //! # AvPony
 //! > What is AvPony?
