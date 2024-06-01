@@ -7,11 +7,7 @@
 //!
 
 use avpony_macros::Spanned;
-use chumsky::{
-    primitive::just,
-    text::{self, TextParser},
-    Parser,
-};
+use chumsky::{primitive::just, text::TextParser, Parser};
 
 use crate::utils::{errors::Error, Span};
 

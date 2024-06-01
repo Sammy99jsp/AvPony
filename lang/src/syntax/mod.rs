@@ -4,42 +4,37 @@
 //! The syntax of the main language, concerning expressions.
 //!
 //! ### Expressions
-//!super::Field::KeyValue
+//!
 //! Pony supports the following as expressions:
 //! * __Singular Expressions__
 //!   * *Literals*: number (Int, Float), string (`"`-only), and boolean (`true`, `false`) literals.
 //!   * *Identifiers*: <ident>
 //!   * *Array-like*: `[ (<expr>,)* ]` (with optional trailing); Empty: `[]`
-//!   * *Maps*: `( (.<ident key>: <expr value>),* )` (with optional training); Empty: `()` -- // TODO: REVIEW
+//!   * *Maps*: `(` (.<ident key>: <expr value>),* `)` (with optional training); Empty: `()`
+//!   * *Tuples*: `(` <expr>, `)``
 //!   * *Parenthesised*: `(` <expr> `)`
 //!
 //! * __Compound Expressions__
 //!     * *Member access*: `<expr reciever>.<ident member>`
 //!     * *Indexing*: `<expr>[<expr index>]`
-//!     * *Function calls*: `<expr callee>((<expr args>),*)` (with optional training)
+//!     * *Application*: <expr func> <expr args>
 //!
 //!     // TODO: Review being more liberal with operators, possible Haskel-style `()` declaration.
-//!     * *Unary Operations* (no optional whitespace between terms):
-//!         * *Prefix Unary Operations*: `<operator> <expr>`
-//!         * *Postfix Unary Operations*: `<expr> <operator>`
 //!     * *Infix Binary Operations* (with optional whitespace between terms):
-//!         * `a <operator> b`
+//!         * `a <binary_operator> b`
 //!
 
+pub mod application;
 pub mod array;
-pub mod call;
 pub mod index;
 pub mod map;
 pub mod member;
 pub mod parenthesized;
+pub mod tuple;
 pub mod utils;
 
 use avpony_macros::Spanned;
-use chumsky::{
-    primitive::{choice, one_of},
-    recursive::recursive,
-    Parser,
-};
+use chumsky::{primitive::choice, recursive::recursive, Parser};
 
 use crate::{
     lexical,
@@ -52,11 +47,12 @@ pub enum Expr {
     Identifier(lexical::Identifier),
     Array(array::Array),
     Map(map::Map),
+    Tuple(tuple::Tuple),
     Parenthesised(parenthesized::Parenthesized),
 
     MemberAccess(member::MemberAccess),
     Indexing(index::Indexing),
-    Call(call::Call),
+    Application(application::Application),
 }
 
 impl Parseable for Expr {
@@ -68,13 +64,14 @@ impl Parseable for Expr {
                     array::Array::parse_with(expr.clone()).map(Self::Array),
                     lexical::Identifier::parser().map(Self::Identifier),
                     map::Map::parse_with(expr.clone()).map(Self::Map),
+                    tuple::Tuple::parse_with(expr.clone()).map(Self::Tuple),
                     parenthesized::Parenthesized::parse_with(expr.clone()).map(Self::Parenthesised),
                 ))
             })
             .boxed();
 
             choice((
-                call::Call::parse_with(solo.clone()).map(Self::Call),
+                application::Application::parse_with(solo.clone()).map(Self::Application),
                 index::Indexing::parse_with(solo.clone()).map(Self::Indexing),
                 member::MemberAccess::parse_with(solo.clone()).map(Self::MemberAccess),
                 solo.clone(),
