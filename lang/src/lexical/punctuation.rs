@@ -83,6 +83,12 @@ mod operator {
 
     #[Punctuation('>' @ Operator)]
     pub struct Gt;
+
+    #[Punctuation('-' @ Operator)]
+    pub struct Minus;
+
+    #[Punctuation('+' @ Operator)]
+    pub struct Plus;
 }
 
 pub use operator::*;

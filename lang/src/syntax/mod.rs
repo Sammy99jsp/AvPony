@@ -29,6 +29,8 @@ pub mod array;
 pub mod index;
 pub mod map;
 pub mod member;
+pub mod operation;
+pub mod operator;
 pub mod parenthesized;
 pub mod tuple;
 pub mod utils;
@@ -45,11 +47,13 @@ use crate::{
 pub enum Expr {
     Literal(lexical::Literal),
     Identifier(lexical::Identifier),
+    Operator(operator::UnaryOperator),
     Array(array::Array),
     Map(map::Map),
     Tuple(tuple::Tuple),
     Parenthesised(parenthesized::Parenthesized),
 
+    BinaryOp(operation::BinaryOperation),
     MemberAccess(member::MemberAccess),
     Indexing(index::Indexing),
     Application(application::Application),
@@ -61,6 +65,7 @@ impl Parseable for Expr {
             let solo = recursive(|_| {
                 choice((
                     lexical::Literal::parser().map(Self::Literal),
+                    operator::UnaryOperator::parser().map(Self::Operator),
                     array::Array::parse_with(expr.clone()).map(Self::Array),
                     lexical::Identifier::parser().map(Self::Identifier),
                     map::Map::parse_with(expr.clone()).map(Self::Map),
@@ -71,6 +76,7 @@ impl Parseable for Expr {
             .boxed();
 
             choice((
+                operation::BinaryOperation::parse_with(solo.clone()).map(Self::BinaryOp),
                 application::Application::parse_with(solo.clone()).map(Self::Application),
                 index::Indexing::parse_with(solo.clone()).map(Self::Indexing),
                 member::MemberAccess::parse_with(solo.clone()).map(Self::MemberAccess),
