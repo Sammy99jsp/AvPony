@@ -27,6 +27,7 @@
 //!
 
 pub mod array;
+pub mod call;
 pub mod index;
 pub mod map;
 pub mod member;
@@ -55,6 +56,7 @@ pub enum Expr {
 
     MemberAccess(member::MemberAccess),
     Indexing(index::Indexing),
+    Call(call::Call),
 }
 
 impl Parseable for Expr {
@@ -72,6 +74,7 @@ impl Parseable for Expr {
             .boxed();
 
             choice((
+                call::Call::parse_with(solo.clone()).map(Self::Call),
                 index::Indexing::parse_with(solo.clone()).map(Self::Indexing),
                 member::MemberAccess::parse_with(solo.clone()).map(Self::MemberAccess),
                 solo.clone(),
