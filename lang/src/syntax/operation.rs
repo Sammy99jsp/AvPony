@@ -16,8 +16,8 @@ use super::operator::BinaryOperator;
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct BinaryOperation {
     span: Span,
-    operator: BinaryOperator,
-    operands: [Box<super::Expr>; 2],
+    pub operator: BinaryOperator,
+    pub operands: [Box<super::Expr>; 2],
 }
 
 impl BinaryOperation {

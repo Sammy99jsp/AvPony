@@ -18,7 +18,7 @@ use super::utils::Punctuated;
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct Array {
     span: Span,
-    contents: Punctuated<super::Expr, punctuation::Comma>,
+    pub contents: Punctuated<super::Expr, punctuation::Comma>,
 }
 
 impl Array {

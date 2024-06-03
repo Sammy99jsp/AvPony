@@ -18,7 +18,7 @@ use crate::utils::{PonyParser, Span};
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct Parenthesized {
-    pub span: Span,
+    span: Span,
     pub inner: Box<super::Expr>,
 }
 

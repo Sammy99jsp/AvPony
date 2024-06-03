@@ -17,7 +17,7 @@ use crate::{
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct MemberAccess {
-    pub span: Span,
+    span: Span,
     pub receiver: Box<super::Expr>,
     pub member: lexical::Identifier,
 }
