@@ -58,17 +58,20 @@ impl<Token, Punct: ParseableExt> Punctuated<Token, Punct> {
         inner
             .clone()
             .then_ignore(text::whitespace())
-            .then_ignore(just(",").padded())
-            .repeated()
-            .then(inner.or_not())
-            .map_with_span(|(mut inner, after), span| Self {
+            .separated_by(just(",").padded())
+            .allow_trailing()
+            .map_with_span(|inner, span| Self {
                 span,
-                inner: {
-                    inner.extend(after);
-                    inner
-                },
+                inner,
                 __marker: PhantomData,
             })
+    }
+
+    pub fn optional_trailing() -> impl PonyParser<Self> + Clone
+    where
+        Token: ParseableExt,
+    {
+        Self::optional_trailing_with(Token::parser())
     }
 }
 
