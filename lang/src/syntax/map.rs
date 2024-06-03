@@ -96,35 +96,36 @@ mod tests {
         let res = Expr::parser().parse(source.stream());
         assert!(matches!(res,
             Ok(Expr::Map(super::Map { fields: Punctuated { inner, .. }, ..}))
-                if matches!(&inner[..], [
+                if matches!(inner.as_slice(), [
                     super::Field::Key(super::FieldKey { ident, ..}),
-                    super::Field::KeyValue(super::FieldKeyValue { key, value, ..})
+                    super::Field::KeyValue(super::FieldKeyValue { key, value: box Expr::Literal(Literal::String(_)), ..})
                 ]
                     if ident == "a" && key == "if_"
-                    && matches!(value.as_ref(), Expr::Literal(Literal::String(_)))
         )));
 
         let (source, _) = SourceFile::test_file(r#"(.nested=(.a=1, .b=2),)"#);
         let res = Expr::parser().parse(source.stream());
         assert!(matches!(res,
         Ok(Expr::Map(super::Map { fields: Punctuated { inner, .. }, ..}))
-            if matches!(&inner[..], [
-                super::Field::KeyValue(super::FieldKeyValue { key, value, ..})
+            if matches!(inner.as_slice(), [
+                super::Field::KeyValue(super::FieldKeyValue {
+                    key,
+                    value: box Expr::Map(super::Map {
+                        fields: Punctuated { inner, ..},
+                        ..
+                    }),
+                    ..
+                })
             ]
                 if key == "nested" &&
-                matches!(
-                    value.as_ref(),
-                    Expr::Map(super::Map {
-                        fields: Punctuated { inner, ..}, ..
-                    }) if matches!(&inner[..], [_, _])
-                )
+                matches!(inner.as_slice(), [_, _])
         )));
 
         let (source, _) = SourceFile::test_file(r#"()"#);
         let res = Expr::parser().parse(source.stream());
         assert!(matches!(res,
         Ok(Expr::Map(super::Map { fields: Punctuated { inner, .. }, ..}))
-            if matches!(&inner[..], []
+            if matches!(inner.as_slice(), []
         )));
     }
 }

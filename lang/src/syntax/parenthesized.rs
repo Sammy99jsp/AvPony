@@ -47,25 +47,36 @@ mod tests {
     fn parened() {
         let (source, _) = SourceFile::test_file(r#"(1)"#);
         let res = Expr::parser().parse(source.stream());
-        assert!(matches!(res,
-        Ok(Expr::Parenthesised(super::Parenthesized { inner, ..}))
-            if matches!(inner.as_ref(), Expr::Literal(Literal::Number(_))
-        )));
+        assert!(matches!(
+            res,
+            Ok(Expr::Parenthesised(super::Parenthesized {
+                inner: box Expr::Literal(Literal::Number(_)),
+                ..
+            }))
+        ));
 
         let (source, _) = SourceFile::test_file(r#"((.a = 1))"#);
         let res = Expr::parser().parse(source.stream());
-        assert!(matches!(res,
-        Ok(Expr::Parenthesised(super::Parenthesized { inner, ..}))
-            if matches!(inner.as_ref(), Expr::Map(_)
-        )));
+        assert!(matches!(
+            res,
+            Ok(Expr::Parenthesised(super::Parenthesized {
+                inner: box Expr::Map(_),
+                ..
+            }))
+        ));
 
         let (source, _) = SourceFile::test_file(r#"(((.a = 1)))"#);
         let res = Expr::parser().parse(source.stream());
-        assert!(matches!(res,
-        Ok(Expr::Parenthesised(super::Parenthesized { inner, ..}))
-            if matches!(inner.as_ref(), Expr::Parenthesised(super::Parenthesized { inner, .. })
-                if matches!(inner.as_ref(), Expr::Map(_))
-            )
+        assert!(matches!(
+            res,
+            Ok(Expr::Parenthesised(super::Parenthesized {
+                inner:
+                    box Expr::Parenthesised(super::Parenthesized {
+                        inner: box Expr::Map(_),
+                        ..
+                    }),
+                ..
+            }))
         ));
     }
 }
