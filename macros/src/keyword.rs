@@ -95,7 +95,7 @@ pub mod traits {
                     unsafety: None,
                     abi: None,
                     fn_token: Default::default(),
-                    ident: ident("parser_cloneable"),
+                    ident: ident("parser"),
                     generics: no_generics(),
                     paren_token: Default::default(),
                     inputs: syn::punctuated::Punctuated::from_iter(self::inputs()),

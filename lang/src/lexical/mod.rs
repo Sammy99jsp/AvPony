@@ -5,16 +5,16 @@
 use avpony_macros::Spanned;
 use chumsky::{primitive::choice, Parser};
 
-use crate::utils::{errors::Error, Parseable};
+use crate::utils::{ParseableExt, PonyParser};
 
 use self::{boolean::BooleanLit, number::NumberLit, string::StringLit};
 
+pub mod boolean;
 pub mod identifier;
 pub mod keyword;
 pub mod number;
-pub mod string;
-pub mod boolean;
 pub mod punctuation;
+pub mod string;
 
 pub use identifier::Identifier;
 
@@ -25,8 +25,8 @@ pub enum Literal {
     Boolean(BooleanLit),
 }
 
-impl Parseable for Literal {
-    fn parser() -> impl chumsky::Parser<char, Self, Error = Error> {
+impl ParseableExt for Literal {
+    fn parser() -> impl PonyParser<Self> + Clone {
         choice((
             NumberLit::parser().map(Self::Number),
             StringLit::parser().map(Self::String),
@@ -34,4 +34,3 @@ impl Parseable for Literal {
         ))
     }
 }
-

@@ -38,7 +38,7 @@ use crate::utils::{
         number::{DivdersBadlyPlaced, InvalidInt, MultipleNumericDividers},
         Error,
     },
-    Parseable, Span,
+    ParseableExt, Span,
 };
 
 pub type IntType = i32;
@@ -53,8 +53,8 @@ pub enum NumberLit {
 static MULTIPLE_NUMERIC_DIVIDERS: OnceLock<Regex> = OnceLock::new();
 static BADLY_PLACED_NUMERIC_DIVIDERS: OnceLock<Regex> = OnceLock::new();
 
-impl Parseable for NumberLit {
-    fn parser() -> impl chumsky::Parser<char, Self, Error = Error> {
+impl ParseableExt for NumberLit {
+    fn parser() -> impl crate::utils::PonyParser<Self> + Clone {
         let divider_train = MULTIPLE_NUMERIC_DIVIDERS.get_or_init(|| Regex::new(r"_(_+)").unwrap());
         let dividers_badly_placed = BADLY_PLACED_NUMERIC_DIVIDERS
             .get_or_init(|| Regex::new(r"(^_)|(-_)|(_\.)|(\._)|(_$)").unwrap());

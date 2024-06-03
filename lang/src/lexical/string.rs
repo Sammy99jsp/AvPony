@@ -59,7 +59,7 @@ use crate::utils::{
         string::{InvalidAsciiCode, InvalidEscapeSequence, InvalidUnicodeCodePoint},
         Error,
     },
-    Parseable, Span,
+    ParseableExt, Span,
 };
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
@@ -67,8 +67,8 @@ pub struct StringLit {
     pub span: Span,
     pub value: String,
 }
-impl Parseable for StringLit {
-    fn parser() -> impl Parser<char, Self, Error = Error> {
+impl ParseableExt for StringLit {
+    fn parser() -> impl crate::utils::PonyParser<Self> + Clone {
         StringPart::parser()
             .repeated()
             .delimited_by(just("\""), just("\""))
@@ -107,8 +107,8 @@ impl StringPart {
     }
 }
 
-impl Parseable for StringPart {
-    fn parser() -> impl chumsky::Parser<char, Self, Error = Error> {
+impl ParseableExt for StringPart {
+    fn parser() -> impl crate::utils::PonyParser<Self> + Clone {
         choice((
             Verbatim::parser().map(Self::Verbatim),
             QuoteEscape::parser().map(Self::QuoteEscape),
@@ -130,8 +130,8 @@ pub struct Verbatim {
     value: String,
 }
 
-impl Parseable for Verbatim {
-    fn parser() -> impl chumsky::Parser<char, Self, Error = Error> {
+impl ParseableExt for Verbatim {
+    fn parser() -> impl crate::utils::PonyParser<Self> + Clone {
         one_of("\"\\\r")
             .not()
             .repeated()
@@ -149,8 +149,8 @@ pub struct QuoteEscape {
     value: char,
 }
 
-impl Parseable for QuoteEscape {
-    fn parser() -> impl chumsky::Parser<char, Self, Error = Error> {
+impl ParseableExt for QuoteEscape {
+    fn parser() -> impl crate::utils::PonyParser<Self> + Clone {
         just("\\")
             .ignore_then(choice((just("\'"), just("\""))))
             .map_with_span(|value, span| {
@@ -168,8 +168,8 @@ pub struct AsciiEscape {
     value: char,
 }
 
-impl Parseable for AsciiEscape {
-    fn parser() -> impl chumsky::Parser<char, Self, Error = Error> {
+impl ParseableExt for AsciiEscape {
+    fn parser() -> impl crate::utils::PonyParser<Self> + Clone {
         let hex_digits = filter(|ch: &char| ch.is_ascii_hexdigit()).repeated();
 
         just("\\").ignore_then(choice((
@@ -210,8 +210,8 @@ pub struct UnicodeEscape {
     value: char,
 }
 
-impl Parseable for UnicodeEscape {
-    fn parser() -> impl chumsky::Parser<char, Self, Error = Error> {
+impl ParseableExt for UnicodeEscape {
+    fn parser() -> impl crate::utils::PonyParser<Self> + Clone {
         let hex_digits = filter(|ch: &char| ch.is_ascii_hexdigit()).repeated();
         just("\\u")
             .ignore_then(
@@ -245,8 +245,8 @@ pub struct StringContinue {
     span: Span,
 }
 
-impl Parseable for StringContinue {
-    fn parser() -> impl Parser<char, Self, Error = Error> {
+impl ParseableExt for StringContinue {
+    fn parser() -> impl crate::utils::PonyParser<Self> + Clone {
         just("\\\n").map_with_span(|_, span| Self { span })
     }
 }
