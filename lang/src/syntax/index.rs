@@ -19,9 +19,7 @@ pub struct Indexing {
 }
 
 impl Indexing {
-    pub fn parse_with(
-        expr: impl PonyParser<super::Expr> + Clone,
-    ) -> impl PonyParser<Self> + Clone {
+    pub fn parse_with(expr: impl PonyParser<super::Expr> + Clone) -> impl PonyParser<Self> + Clone {
         expr.clone()
             .then(expr.padded().delimited_by(just("["), just("]")))
             .map_with_span(|(receiver, index), span| Self {
@@ -53,6 +51,10 @@ mod tests {
                 index: box Expr::Literal(Literal::String(key)),
                 ..
             })) if (&ident == "dict") && (&key == "key")
-        ))
+        ));
+
+        let (source, _) = SourceFile::test_file(r#"func ["arg1", "arg2", "arg3"]"#);
+        let res = Expr::parser().parse(source.stream());
+        assert!(matches!(res, Ok(Expr::Application(_))))
     }
 }
