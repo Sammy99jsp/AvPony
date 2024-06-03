@@ -14,7 +14,7 @@
 use avpony_macros::Spanned;
 use chumsky::{primitive::just, text, Parser};
 
-use crate::utils::{errors::Error, Span};
+use crate::utils::{PonyParser, Span};
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct Parenthesized {
@@ -23,9 +23,7 @@ pub struct Parenthesized {
 }
 
 impl Parenthesized {
-    pub fn parse_with(
-        expr: impl chumsky::Parser<char, super::Expr, Error = Error>,
-    ) -> impl chumsky::Parser<char, Self, Error = Error> {
+    pub fn parse_with(expr: impl PonyParser<super::Expr> + Clone) -> impl PonyParser<Self> + Clone {
         expr.padded_by(text::whitespace())
             .delimited_by(just("("), just(")"))
             .map_with_span(|inner, span| Self {

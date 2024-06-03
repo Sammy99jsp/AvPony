@@ -12,7 +12,7 @@ use chumsky::{
 
 use crate::{
     lexical::{punctuation, Identifier},
-    utils::{errors::Error, Parseable, Span},
+    utils::{ParseableExt, PonyParser, Span},
 };
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
@@ -20,8 +20,8 @@ pub enum UnaryOperator {
     Symbols(Symbolic),
 }
 
-impl Parseable for UnaryOperator {
-    fn parser() -> impl chumsky::Parser<char, Self, Error = Error> {
+impl ParseableExt for UnaryOperator {
+    fn parser() -> impl PonyParser<Self> + Clone {
         Symbolic::parser().map(Self::Symbols)
     }
 }
@@ -32,8 +32,8 @@ pub struct Symbolic {
     pub value: String,
 }
 
-impl Parseable for Symbolic {
-    fn parser() -> impl chumsky::Parser<char, Self, Error = Error> {
+impl ParseableExt for Symbolic {
+    fn parser() -> impl PonyParser<Self> + Clone {
         one_of(punctuation::OPERATOR)
             .repeated()
             .at_least(1)
@@ -50,8 +50,8 @@ pub enum BinaryOperator {
     Named(NamedBinary),
 }
 
-impl Parseable for BinaryOperator {
-    fn parser() -> impl chumsky::Parser<char, Self, Error = crate::utils::errors::Error> {
+impl ParseableExt for BinaryOperator {
+    fn parser() -> impl PonyParser<Self> + Clone {
         choice((
             Symbolic::parser().map(Self::Symbols),
             NamedBinary::parser().map(Self::Named),
@@ -74,8 +74,8 @@ pub struct NamedBinary {
     pub ident: Identifier,
 }
 
-impl Parseable for NamedBinary {
-    fn parser() -> impl chumsky::Parser<char, Self, Error = Error> {
+impl ParseableExt for NamedBinary {
+    fn parser() -> impl PonyParser<Self> + Clone {
         Identifier::parser()
             .delimited_by(just("`"), just("`"))
             .map_with_span(|ident, span| Self { span, ident })

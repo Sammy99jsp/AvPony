@@ -9,7 +9,7 @@
 use avpony_macros::Spanned;
 use chumsky::{primitive::just, text::TextParser, Parser};
 
-use crate::utils::{errors::Error, Span};
+use crate::utils::{PonyParser, Span};
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct Indexing {
@@ -20,8 +20,8 @@ pub struct Indexing {
 
 impl Indexing {
     pub fn parse_with(
-        expr: impl chumsky::Parser<char, super::Expr, Error = Error> + Clone,
-    ) -> impl chumsky::Parser<char, Self, Error = Error> {
+        expr: impl PonyParser<super::Expr> + Clone,
+    ) -> impl PonyParser<Self> + Clone {
         expr.clone()
             .then(expr.padded().delimited_by(just("["), just("]")))
             .map_with_span(|(receiver, index), span| Self {

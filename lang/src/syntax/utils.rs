@@ -11,7 +11,7 @@ use chumsky::{
     Parser,
 };
 
-use crate::utils::{errors::Error, Parseable, Span};
+use crate::utils::{ParseableExt, PonyParser, Span};
 
 ///
 /// A sequence of a certain token type,
@@ -24,7 +24,7 @@ pub struct Punctuated<Token, Punct> {
     __marker: PhantomData<Punct>,
 }
 
-impl<Token, Punct: Parseable> Punctuated<Token, Punct> {
+impl<Token, Punct: ParseableExt> Punctuated<Token, Punct> {
     pub fn iter(&self) -> impl Iterator<Item = &Token> + '_ {
         self.inner.iter()
     }
@@ -33,9 +33,7 @@ impl<Token, Punct: Parseable> Punctuated<Token, Punct> {
         self.inner.iter_mut()
     }
 
-    pub fn trailing_with(
-        inner: impl Parser<char, Token, Error = Error>,
-    ) -> impl Parser<char, Self, Error = Error> {
+    pub fn trailing_with(inner: impl PonyParser<Token> + Clone) -> impl PonyParser<Self> + Clone {
         inner
             .padded()
             .then_ignore(just(",").padded())
@@ -47,16 +45,16 @@ impl<Token, Punct: Parseable> Punctuated<Token, Punct> {
             })
     }
 
-    pub fn trailing() -> impl Parser<char, Self, Error = Error>
+    pub fn trailing() -> impl PonyParser<Self> + Clone
     where
-        Token: Parseable,
+        Token: ParseableExt,
     {
         Self::trailing_with(Token::parser())
     }
 
     pub fn optional_trailing_with(
-        inner: impl Parser<char, Token, Error = Error> + Clone,
-    ) -> impl Parser<char, Self, Error = Error> {
+        inner: impl PonyParser<Token> + Clone,
+    ) -> impl PonyParser<Self> + Clone {
         inner
             .clone()
             .then_ignore(text::whitespace())

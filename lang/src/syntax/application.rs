@@ -12,7 +12,7 @@
 use avpony_macros::Spanned;
 use chumsky::{text, Parser};
 
-use crate::utils::{errors::Error, Span};
+use crate::utils::{PonyParser, Span};
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct Application {
@@ -23,8 +23,8 @@ pub struct Application {
 
 impl Application {
     pub fn parse_with(
-        expr: impl chumsky::Parser<char, super::Expr, Error = Error> + Clone,
-    ) -> impl chumsky::Parser<char, Self, Error = Error> {
+        expr: impl PonyParser<super::Expr> + Clone,
+    ) -> impl PonyParser<Self> + Clone {
         expr.clone()
             .map(Box::new)
             .padded_by(text::whitespace())

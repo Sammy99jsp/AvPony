@@ -9,7 +9,7 @@
 use avpony_macros::Spanned;
 use chumsky::{text, Parser};
 
-use crate::utils::{errors::Error, Parseable, Span};
+use crate::utils::{PonyParser, ParseableExt, Span};
 
 use super::operator::BinaryOperator;
 
@@ -21,9 +21,7 @@ pub struct BinaryOperation {
 }
 
 impl BinaryOperation {
-    pub fn parse_with(
-        expr: impl chumsky::Parser<char, super::Expr, Error = Error> + Clone,
-    ) -> impl chumsky::Parser<char, Self, Error = Error> {
+    pub fn parse_with(expr: impl PonyParser<super::Expr> + Clone) -> impl PonyParser<Self> + Clone {
         expr.clone()
             .padded_by(text::whitespace())
             .map(Box::new)

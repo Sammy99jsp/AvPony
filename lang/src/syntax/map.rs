@@ -21,7 +21,7 @@ use chumsky::{
 
 use crate::{
     lexical::{identifier::Identifier, punctuation},
-    utils::{errors::Error, Span},
+    utils::{ParseableExt, PonyParser, Span},
 };
 
 use super::utils::Punctuated;
@@ -33,9 +33,7 @@ pub struct Map {
 }
 
 impl Map {
-    pub fn parse_with(
-        expr: impl chumsky::Parser<char, super::Expr, Error = Error> + Clone,
-    ) -> impl chumsky::Parser<char, Self, Error = Error> {
+    pub fn parse_with(expr: impl PonyParser<super::Expr> + Clone) -> impl PonyParser<Self> + Clone {
         Punctuated::<_, punctuation::Comma>::optional_trailing_with(Field::parse_with(expr))
             .padded()
             .delimited_by(just("("), just(")"))
@@ -50,11 +48,9 @@ pub enum Field {
 }
 
 impl Field {
-    fn parse_with(
-        expr: impl chumsky::Parser<char, super::Expr, Error = Error> + Clone,
-    ) -> impl chumsky::Parser<char, Self, Error = Error> + Clone {
+    fn parse_with(expr: impl PonyParser<super::Expr> + Clone) -> impl PonyParser<Self> + Clone {
         just(".")
-            .ignore_then(Identifier::parser_cloneable().then_ignore(text::whitespace()))
+            .ignore_then(Identifier::parser().then_ignore(text::whitespace()))
             .then(
                 just("=")
                     .padded_by(text::whitespace())
