@@ -10,7 +10,7 @@ use chumsky::{primitive::just, text, Parser};
 
 use crate::{
     lexical::punctuation,
-    utils::{errors::Error, Span},
+    utils::{PonyParser, Span},
 };
 
 use super::utils::Punctuated;
@@ -23,8 +23,8 @@ pub struct Array {
 
 impl Array {
     pub fn parse_with(
-        inner: impl Parser<char, super::Expr, Error = Error> + Clone,
-    ) -> impl chumsky::Parser<char, Self, Error = Error> {
+        inner: impl PonyParser<super::Expr> + Clone,
+    ) -> impl PonyParser<Self> + Clone {
         Punctuated::optional_trailing_with(inner)
             .delimited_by(
                 just("[").then_ignore(text::whitespace()),

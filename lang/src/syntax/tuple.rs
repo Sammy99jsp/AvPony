@@ -14,7 +14,7 @@ use chumsky::{
 
 use crate::{
     lexical::punctuation,
-    utils::{errors::Error, Parseable, Span},
+    utils::{ParseableExt, PonyParser, Span},
 };
 
 use super::utils::Punctuated;
@@ -27,8 +27,8 @@ pub struct Tuple {
 
 impl Tuple {
     pub fn parse_with(
-        expr: impl chumsky::Parser<char, super::Expr, Error = Error> + Clone,
-    ) -> impl chumsky::Parser<char, Self, Error = Error> {
+        expr: impl PonyParser<super::Expr> + Clone,
+    ) -> impl PonyParser<Self> + Clone {
         expr.clone()
             .padded_by(text::whitespace())
             .then_ignore(punctuation::Comma::parser().padded())

@@ -99,8 +99,34 @@ impl Spanned for Span {
 }
 
 ///
+/// Parse a Pony syntax node.
+///
+/// Alias for chumsky parser on [char]s, with our compiler error ([errors::Error]).
+///
+pub trait PonyParser<T>: chumsky::Parser<char, T, Error = self::errors::Error> {}
+
+impl<T, Par> PonyParser<T> for Par where Par: chumsky::Parser<char, T, Error = self::errors::Error> {}
+
+///
 /// Something that can be parsed.
 ///
 pub trait Parseable: Sized + Debug + Clone + Spanned + PartialEq {
-    fn parser() -> impl chumsky::Parser<char, Self, Error = errors::Error>;
+    fn parser() -> impl PonyParser<Self>;
+}
+
+///
+/// More advanced version of the [Parseable] trait,
+/// that allows for cloneable parsers.
+///
+pub trait ParseableExt: Sized + Debug + Clone + Spanned + PartialEq {
+    fn parser() -> impl PonyParser<Self> + Clone;
+}
+
+impl<Par> Parseable for Par
+where
+    Par: ParseableExt,
+{
+    fn parser() -> impl PonyParser<Self> {
+        Self::parser()
+    }
 }

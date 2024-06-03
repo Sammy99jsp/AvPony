@@ -12,7 +12,7 @@ use chumsky::Parser;
 
 use crate::{
     lexical::{self, punctuation},
-    utils::{errors::Error, Parseable, Span},
+    utils::{ParseableExt, PonyParser, Span},
 };
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
@@ -23,9 +23,7 @@ pub struct MemberAccess {
 }
 
 impl MemberAccess {
-    pub fn parse_with(
-        expr: impl chumsky::Parser<char, super::Expr, Error = Error>,
-    ) -> impl chumsky::Parser<char, Self, Error = Error> {
+    pub fn parse_with(expr: impl PonyParser<super::Expr> + Clone) -> impl PonyParser<Self> + Clone {
         expr.map(Box::new)
             .then_ignore(punctuation::Dot::parser())
             .then(lexical::Identifier::parser())

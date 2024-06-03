@@ -7,7 +7,7 @@
 use avpony_macros::Spanned;
 use chumsky::{primitive::choice, Parser};
 
-use crate::utils::{errors::Error, Parseable};
+use crate::utils::ParseableExt;
 
 use super::keyword;
 
@@ -17,8 +17,8 @@ pub enum BooleanLit {
     True(keyword::True),
 }
 
-impl Parseable for BooleanLit {
-    fn parser() -> impl chumsky::Parser<char, Self, Error = Error> {
+impl ParseableExt for BooleanLit {
+    fn parser() -> impl crate::utils::PonyParser<Self> + Clone {
         choice((
             keyword::False::parser().map(Self::False),
             keyword::True::parser().map(Self::True),

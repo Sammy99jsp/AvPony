@@ -27,29 +27,25 @@ fn path(iter: impl IntoIterator<Item = &'static str>) -> syn::Path {
 }
 
 #[allow(non_snake_case)]
-mod structs {
-    use super::path;
-
-    pub fn Error() -> syn::Type {
-        syn::Type::Path(syn::TypePath {
-            qself: None,
-            path: path(["crate", "utils", "errors", "Error"]),
-        })
-    }
-}
-
-#[allow(non_snake_case)]
 pub mod traits {
 
-    pub mod Parseable {
+    pub mod PonyParser {
         use crate::keyword::path as make_path;
 
         pub fn path() -> syn::Path {
-            make_path(["crate", "utils", "Parseable"])
+            make_path(["crate", "utils", "PonyParser"])
+        }
+    }
+
+    pub mod ParseableExt {
+        use crate::keyword::path as make_path;
+
+        pub fn path() -> syn::Path {
+            make_path(["crate", "utils", "ParseableExt"])
         }
 
-        pub mod parser {
-            use crate::keyword::{ident, no_generics, structs};
+        pub mod parser_cloneable {
+            use crate::keyword::{ident, no_generics};
 
             fn inputs() -> impl IntoIterator<Item = syn::FnArg> {
                 std::iter::empty()
@@ -59,7 +55,7 @@ pub mod traits {
                 syn::Type::ImplTrait(syn::TypeImplTrait {
                     impl_token: Default::default(),
                     bounds: {
-                        let mut path = super::super::Parser::path();
+                        let mut path = super::super::PonyParser::path();
                         let parser = path.segments.last_mut().unwrap();
 
                         parser.arguments = syn::PathArguments::AngleBracketed(
@@ -69,18 +65,8 @@ pub mod traits {
                                 args: syn::punctuated::Punctuated::from_iter([
                                     syn::GenericArgument::Type(syn::Type::Path(syn::TypePath {
                                         qself: None,
-                                        path: ident("char").into(),
-                                    })),
-                                    syn::GenericArgument::Type(syn::Type::Path(syn::TypePath {
-                                        qself: None,
                                         path: ident("Self").into(),
                                     })),
-                                    syn::GenericArgument::AssocType(syn::AssocType {
-                                        ident: ident("Error"),
-                                        generics: None,
-                                        eq_token: Default::default(),
-                                        ty: structs::Error(),
-                                    }),
                                 ]),
                                 gt_token: Default::default(),
                             },
@@ -92,7 +78,12 @@ pub mod traits {
                             lifetimes: None,
                             path,
                         });
-                        syn::punctuated::Punctuated::from_iter(std::iter::once(bound))
+                        syn::punctuated::Punctuated::from_iter([bound, syn::TypeParamBound::Trait(syn::TraitBound {
+                            paren_token: None,
+                            modifier: syn::TraitBoundModifier::None,
+                            lifetimes: None,
+                            path: ident("Clone").into(),
+                        })])
                     },
                 })
             }
@@ -146,17 +137,13 @@ pub mod traits {
                     path: st.ident.clone().into(),
                 })),
                 brace_token: Default::default(),
-                items: vec![self::parser::declare(stmts)],
+                items: vec![self::parser_cloneable::declare(stmts)],
             }
         }
     }
 
     pub mod Parser {
         use crate::keyword::{ident, path as make_path};
-
-        pub fn path() -> syn::Path {
-            make_path(["chumsky", "Parser"])
-        }
 
         pub fn just(s: &str) -> syn::Expr {
             syn::Expr::Call(syn::ExprCall {
@@ -313,7 +300,7 @@ pub fn make_keyword(
                 })),
             });
 
-            let impl_parseable = traits::Parseable::impl_for(
+            let impl_parseable = traits::ParseableExt::impl_for(
                 &st,
                 std::iter::once(syn::Stmt::Expr(
                     traits::Parser::map_with_span(

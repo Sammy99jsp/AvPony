@@ -51,7 +51,7 @@ pub fn create_punctuation_for(
         macros::PartialEq(),
     ]));
 
-    let impl_parseable = traits::Parseable::impl_for(
+    let impl_parseable = traits::ParseableExt::impl_for(
         &st,
         std::iter::once(syn::Stmt::Expr(
             traits::Parser::map_with_span(
@@ -79,9 +79,11 @@ pub fn create_punctuation_for(
         )),
     );
 
-
     proc_macro::TokenStream::from_iter(
-        proc_macro::TokenStream::from(st.into_token_stream()).into_iter()
-            .chain(proc_macro::TokenStream::from(impl_parseable.into_token_stream()))
+        proc_macro::TokenStream::from(st.into_token_stream())
+            .into_iter()
+            .chain(proc_macro::TokenStream::from(
+                impl_parseable.into_token_stream(),
+            )),
     )
 }

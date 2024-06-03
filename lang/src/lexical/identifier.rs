@@ -23,10 +23,7 @@ use chumsky::{
     Parser,
 };
 
-use crate::utils::{
-    errors::{identifier::ReservedIdentifier, Error},
-    Parseable, Span,
-};
+use crate::utils::{errors::identifier::ReservedIdentifier, ParseableExt, Span};
 
 use super::keyword;
 
@@ -39,8 +36,8 @@ pub struct UncheckedIdentifier {
     value: String,
 }
 
-impl UncheckedIdentifier {
-    fn parser_cloneable() -> impl chumsky::Parser<char, Self, Error = Error> + Clone {
+impl ParseableExt for UncheckedIdentifier {
+    fn parser() -> impl crate::utils::PonyParser<Self> + Clone {
         let xid_start = filter::<char, _, _>(|ch: &char| unicode_ident::is_xid_start(*ch));
         let xid_continue = filter::<char, _, _>(|ch: &char| unicode_ident::is_xid_continue(*ch));
 
@@ -61,34 +58,21 @@ impl UncheckedIdentifier {
     }
 }
 
-impl Parseable for UncheckedIdentifier {
-    fn parser() -> impl chumsky::Parser<char, Self, Error = Error> {
-        Self::parser_cloneable()
-    }
-}
-
-
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct Identifier {
     span: Span,
     value: String,
 }
 
-impl Identifier {
-    pub fn parser_cloneable() -> impl chumsky::Parser<char, Self, Error = Error> + Clone {
-        UncheckedIdentifier::parser_cloneable().try_map(|UncheckedIdentifier { span, value }, _| {
+impl ParseableExt for Identifier {
+    fn parser() -> impl crate::utils::PonyParser<Self> + Clone {
+        UncheckedIdentifier::parser().try_map(|UncheckedIdentifier { span, value }, _| {
             if keyword::is_keyword(&value) {
                 Err(ReservedIdentifier::new(span, value).into())
             } else {
                 Ok(Self { span, value })
             }
         })
-    }
-}
-
-impl Parseable for Identifier {
-    fn parser() -> impl chumsky::Parser<char, Self, Error = Error> {
-        Self::parser_cloneable()
     }
 }
 

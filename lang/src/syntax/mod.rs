@@ -40,7 +40,7 @@ use chumsky::{primitive::choice, recursive::recursive, Parser};
 
 use crate::{
     lexical,
-    utils::{errors::Error, Parseable},
+    utils::{ParseableExt, PonyParser},
 };
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
@@ -59,8 +59,8 @@ pub enum Expr {
     Application(application::Application),
 }
 
-impl Parseable for Expr {
-    fn parser() -> impl chumsky::Parser<char, Self, Error = Error> {
+impl ParseableExt for Expr {
+    fn parser() -> impl PonyParser<Self> + Clone {
         recursive(|expr| {
             let solo = recursive(|_| {
                 choice((
