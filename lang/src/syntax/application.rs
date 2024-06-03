@@ -10,7 +10,7 @@
 //!
 
 use avpony_macros::Spanned;
-use chumsky::{text, Parser};
+use chumsky::{primitive::just, text, Parser};
 
 use crate::utils::{PonyParser, Span};
 
@@ -22,11 +22,10 @@ pub struct Application {
 }
 
 impl Application {
-    pub fn parse_with(
-        expr: impl PonyParser<super::Expr> + Clone,
-    ) -> impl PonyParser<Self> + Clone {
+    pub fn parse_with(expr: impl PonyParser<super::Expr> + Clone) -> impl PonyParser<Self> + Clone {
         expr.clone()
             .map(Box::new)
+            .then_ignore(just("[").not().rewind())
             .padded_by(text::whitespace())
             .then(expr.map(Box::new))
             .map_with_span(|(function, argument), span| Self {
