@@ -29,7 +29,7 @@ use super::utils::Punctuated;
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct Map {
     span: Span,
-    fields: Punctuated<Field, punctuation::Comma>,
+    pub fields: Punctuated<Field, punctuation::Comma>,
 }
 
 impl Map {

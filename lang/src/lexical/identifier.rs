@@ -33,7 +33,7 @@ use super::keyword;
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct UncheckedIdentifier {
     span: Span,
-    value: String,
+    pub value: String,
 }
 
 impl ParseableExt for UncheckedIdentifier {
@@ -61,7 +61,7 @@ impl ParseableExt for UncheckedIdentifier {
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct Identifier {
     span: Span,
-    value: String,
+    pub value: String,
 }
 
 impl ParseableExt for Identifier {

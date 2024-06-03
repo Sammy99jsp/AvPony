@@ -14,8 +14,8 @@ use crate::utils::{PonyParser, Span};
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct Indexing {
     span: Span,
-    receiver: Box<super::Expr>,
-    index: Box<super::Expr>,
+    pub receiver: Box<super::Expr>,
+    pub index: Box<super::Expr>,
 }
 
 impl Indexing {

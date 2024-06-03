@@ -22,7 +22,7 @@ use super::utils::Punctuated;
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct Tuple {
     span: Span,
-    items: Vec<super::Expr>,
+    pub items: Vec<super::Expr>,
 }
 
 impl Tuple {

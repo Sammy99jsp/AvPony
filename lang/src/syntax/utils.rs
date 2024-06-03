@@ -19,7 +19,7 @@ use crate::utils::{ParseableExt, PonyParser, Span};
 ///
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct Punctuated<Token, Punct> {
-    pub span: Span,
+    span: Span,
     pub inner: Vec<Token>,
     __marker: PhantomData<Punct>,
 }

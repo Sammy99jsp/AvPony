@@ -17,8 +17,8 @@ use crate::utils::{PonyParser, Span};
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct Application {
     span: Span,
-    function: Box<super::Expr>,
-    argument: Box<super::Expr>,
+    pub function: Box<super::Expr>,
+    pub argument: Box<super::Expr>,
 }
 
 impl Application {

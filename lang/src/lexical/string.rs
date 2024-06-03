@@ -64,7 +64,7 @@ use crate::utils::{
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct StringLit {
-    pub span: Span,
+    span: Span,
     pub value: String,
 }
 impl ParseableExt for StringLit {
