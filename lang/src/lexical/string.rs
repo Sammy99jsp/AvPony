@@ -54,6 +54,18 @@ pub fn to_hex_value(ch: char) -> u32 {
     }
 }
 
+pub fn hex_nibbles_to_u32<IntoIter: IntoIterator<Item = char>>(iter: IntoIter) -> u32
+where
+    IntoIter::IntoIter: DoubleEndedIterator,
+{
+    iter.into_iter()
+        .rev()
+        .map(to_hex_value)
+        .enumerate()
+        .map(|(nibble, val)| val << (4 * nibble))
+        .sum()
+}
+
 use crate::utils::{
     errors::{
         string::{InvalidAsciiCode, InvalidEscapeSequence, InvalidUnicodeCodePoint},
@@ -175,14 +187,7 @@ impl ParseableExt for AsciiEscape {
         just("\\").ignore_then(choice((
             just("x")
                 .ignore_then(hex_digits.at_least(1).at_most(2))
-                .map(|hex| {
-                    hex.into_iter()
-                        .rev()
-                        .map(to_hex_value)
-                        .enumerate()
-                        .map(|(nibble, val)| val << (4 * nibble))
-                        .sum()
-                })
+                .map(|hex| hex_nibbles_to_u32(hex))
                 .try_map(|value: u32, span| {
                     // If code is higher than original (non-extended) 7-bit ASCII codes,
                     // it's not a valid ASCII escape -- I know, shocker(!)
