@@ -6,10 +6,12 @@ pub mod html_ref;
 pub mod identifier;
 pub mod number;
 pub mod string;
+pub mod tag;
 
 use ariadne::{Color, ColorGenerator, Fmt, Label};
 use avpony_macros::Spanned;
 use html_ref::InvalidEntityName;
+use tag::{SoloExprOnly, UnclosedTag};
 
 use self::{
     identifier::ReservedIdentifier,
@@ -29,6 +31,8 @@ pub enum Error {
     InvalidEscapeSequence(InvalidEscapeSequence),
     ReservedIdentifier(ReservedIdentifier),
     InvalidEntityName(InvalidEntityName),
+    SoloExprOnly(SoloExprOnly),
+    UnclosedTag(UnclosedTag),
 }
 
 impl chumsky::Error<char> for self::Error {
@@ -63,6 +67,8 @@ impl chumsky::Error<char> for self::Error {
             Self::InvalidEscapeSequence(err) => Self::InvalidEscapeSequence(err.with_label(label)),
             Self::ReservedIdentifier(err) => Self::ReservedIdentifier(err.with_label(label)),
             Self::InvalidEntityName(err) => Self::InvalidEntityName(err),
+            Self::SoloExprOnly(err) => Self::SoloExprOnly(err.with_label(label)),
+            Self::UnclosedTag(err) => Self::UnclosedTag(err.with_label(label)),
         }
     }
 
@@ -93,6 +99,8 @@ impl ErrorI for Error {
             Self::InvalidEscapeSequence(err) => err.to_report(),
             Self::ReservedIdentifier(err) => err.to_report(),
             Self::InvalidEntityName(err) => err.to_report(),
+            Self::SoloExprOnly(err) => err.to_report(),
+            Self::UnclosedTag(err) => err.to_report(),
         }
     }
 }

@@ -12,7 +12,7 @@ use crate::utils::{ParseableExt, PonyParser, Span};
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct Text {
     span: Span,
-    text: String,
+    pub text: String,
 }
 
 impl ParseableExt for Text {

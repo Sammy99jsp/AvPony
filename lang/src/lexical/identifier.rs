@@ -82,6 +82,13 @@ impl PartialEq<str> for Identifier {
     }
 }
 
+impl Identifier {
+    pub fn same_name_as(&self, other: &Self) -> bool {
+        self.value == other.value
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use chumsky::Parser;

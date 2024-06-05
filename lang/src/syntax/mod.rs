@@ -40,7 +40,10 @@ use chumsky::{primitive::choice, recursive::recursive, Parser};
 
 use crate::{
     lexical,
-    utils::{ParseableExt, PonyParser},
+    utils::{
+        errors::{tag::SoloExprOnly, Error},
+        ParseableExt, PonyParser,
+    },
 };
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
@@ -82,6 +85,43 @@ impl ParseableExt for Expr {
                 member::MemberAccess::parse_with(solo.clone()).map(Self::MemberAccess),
                 solo.clone(),
             ))
+        })
+    }
+}
+
+#[derive(Debug, Clone, Spanned, PartialEq)]
+pub enum SoloExpr {
+    Literal(lexical::Literal),
+    Identifier(lexical::Identifier),
+    Operator(operator::UnaryOperator),
+    Array(array::Array),
+    Map(map::Map),
+    Tuple(tuple::Tuple),
+    Parenthesised(parenthesized::Parenthesized),
+}
+
+impl ParseableExt for SoloExpr {
+    fn parser() -> impl PonyParser<Self> + Clone {
+        recursive(|expr| {
+            choice((
+                lexical::Literal::parser().map(Expr::Literal),
+                operator::UnaryOperator::parser().map(Expr::Operator),
+                array::Array::parse_with(expr.clone()).map(Expr::Array),
+                lexical::Identifier::parser().map(Expr::Identifier),
+                map::Map::parse_with(expr.clone()).map(Expr::Map),
+                tuple::Tuple::parse_with(expr.clone()).map(Expr::Tuple),
+                parenthesized::Parenthesized::parse_with(expr.clone()).map(Expr::Parenthesised),
+            ))
+        })
+        .try_map(|val, span| match val {
+            Expr::Literal(t) => Ok(Self::Literal(t)),
+            Expr::Identifier(t) => Ok(Self::Identifier(t)),
+            Expr::Operator(t) => Ok(Self::Operator(t)),
+            Expr::Array(t) => Ok(Self::Array(t)),
+            Expr::Map(t) => Ok(Self::Map(t)),
+            Expr::Tuple(t) => Ok(Self::Tuple(t)),
+            Expr::Parenthesised(t) => Ok(Self::Parenthesised(t)),
+            _ => Err(Error::SoloExprOnly(SoloExprOnly::new(span))),
         })
     }
 }
