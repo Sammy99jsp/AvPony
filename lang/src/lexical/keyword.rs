@@ -42,10 +42,10 @@ mod kw {
 
     #[Keyword]
     pub struct Debug;
-    
+
     #[Keyword]
     pub struct True;
-    
+
     #[Keyword]
     pub struct False;
 }

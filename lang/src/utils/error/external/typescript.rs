@@ -1,9 +1,16 @@
+//!
+//! TypeScript Errors
+//!
+
 use ariadne::{Report, ReportKind};
 use avpony_macros::ErrorType;
 use swc_common::errors::{EmitterWriter, Handler};
 
 use crate::utils::{ErrorI, Span};
 
+///
+/// A representation of a TypeScript parser (+ linter?) error.
+///
 #[ErrorType(crate::utils::Error)]
 pub struct TSError {
     span: Span,
@@ -34,7 +41,6 @@ impl ConvertTSError for swc_ecma_parser::error::Error {
         let handler = Handler::with_emitter(true, false, Box::new(emitter));
         let mut diag = self.into_diagnostic(&handler);
         diag.emit();
-        println!("{diag:?}");
 
         let (kind, code) = diag
             .get_code()
@@ -46,6 +52,7 @@ impl ConvertTSError for swc_ecma_parser::error::Error {
 
         let msgs = diag.message.iter().map(|a| a.0.clone()).collect::<String>();
         println!("{msgs}");
+        // TODO: Add extra info here.
 
         TSError {
             span: diag

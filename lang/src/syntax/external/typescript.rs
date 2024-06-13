@@ -1,3 +1,6 @@
+//!
+//! ## TypeScript support.
+//! 
 use chumsky::{
     input::Marker,
     primitive::{any, custom, just},
@@ -36,7 +39,7 @@ impl TypeScript {
 
     fn inline_parse_for<'src, 'parse, O: swc_common::Spanned, F>(
         func: F,
-    ) -> impl PonyParser<'src, O>
+    ) -> impl PonyParser<'src, O> + Clone
     where
         F: Fn(
                 &mut swc_ecma_parser::Parser<swc_ecma_parser::lexer::Lexer<'src>>,
@@ -79,7 +82,7 @@ impl super::External for TypeScript {
             })
     }
 
-    fn expression<'src>() -> impl PonyParser<'src, Self::Expression> {
+    fn expression<'src>() -> impl PonyParser<'src, Self::Expression> + Clone {
         Self::inline_parse_for(|parser| parser.parse_expr().map(|b| *b))
     }
 }
@@ -92,7 +95,6 @@ impl utils::Span {
         )
     }
 }
-
 #[cfg(test)]
 mod tests {
     use chumsky::{IterParser, Parser};
@@ -103,19 +105,17 @@ mod tests {
 
     #[test]
     fn parse_expr() {
-        let a = SourceFile::test_file("(1 + )");
+        let (file, _) = SourceFile::test_file("(1 + )");
         let res = TypeScript::expression()
             .repeated()
             .collect::<Vec<_>>()
-            .parse(a.input())
+            .parse(file.stream())
             .into_result();
-
-        println!("{res:?}");
     }
 
     #[test]
     fn parse_module() {
-        let a = SourceFile::test_file(
+        let (file, _) = SourceFile::test_file(
             r#"
             // Import standard library.
             import "@avpony/prelude";
@@ -125,7 +125,7 @@ mod tests {
             let clicked: boolean;
             "#,
         );
-        let res = TypeScript::module().parse(a.input()).into_result();
+        let res = TypeScript::module().parse(file.stream()).into_result();
         assert!(res.is_ok())
     }
 }

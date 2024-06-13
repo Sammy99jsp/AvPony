@@ -1,11 +1,15 @@
+//!
+//! Identifier Errors
+//! 
+
 use ariadne::{ColorGenerator, Fmt, Label};
-use avpony_macros::Spanned;
+use avpony_macros::ErrorType;
 
 use crate::utils::Span;
 
 use super::ErrorI;
 
-#[derive(Debug, Clone, Spanned, PartialEq)]
+#[ErrorType(crate::utils::Error)]
 pub struct ReservedIdentifier {
     span: Span,
     erroneous: String,
@@ -17,17 +21,7 @@ impl ReservedIdentifier {
     }
 }
 
-impl From<ReservedIdentifier> for super::Error {
-    fn from(value: ReservedIdentifier) -> Self {
-        Self::ReservedIdentifier(value)
-    }
-}
-
 impl ErrorI for ReservedIdentifier {
-    fn with_label(self, _: <super::Error as chumsky::Error<char>>::Label) -> Self {
-        self
-    }
-
     fn to_report(self) -> ariadne::Report<'static, crate::utils::Span> {
         let mut colors = ColorGenerator::new();
         let err_color = colors.next();

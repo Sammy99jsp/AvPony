@@ -1,6 +1,21 @@
+//!
+//! Build script for HTML entities.
+//!
+//! Gets definitions from `src/syntax/ponyx/entities/html_ref.json`.
+//!
+
 #![feature(closure_lifetime_binder)]
 use std::{env, fs, path::Path};
 
+macro_rules! q {
+    ($($t: tt)*) => {{
+        let tokens = quote::quote! { $($t)* };
+        syn::parse2(tokens.clone())
+            .expect(&format!("Error on {}:{}\n\nTokens: {tokens}", file!(), line!()))
+    }}
+}
+
+use proc_macro2::Span;
 use quote::ToTokens;
 
 use std::collections::HashMap;
@@ -46,10 +61,7 @@ impl<'de> serde::Deserialize<'de> for EntityId {
     }
 }
 
-pub fn register_entities(
-    span: proc_macro2::Span,
-    contents: String,
-) -> impl Iterator<Item = syn::Item> {
+pub fn register_entities(span: Span, contents: String) -> impl Iterator<Item = syn::Item> {
     let map: HashMap<EntityId, HtmlEntity> =
         match serde_json::from_str(&contents).map_err(Box::<dyn std::error::Error>::from) {
             Ok(map) => map,
@@ -87,56 +99,16 @@ pub fn register_entities(
 
     [codes, values]
         .map(|elems| {
-            syn::Expr::Array(syn::ExprArray {
-                attrs: Default::default(),
-                bracket_token: Default::default(),
-                elems,
-            })
+            let expr: syn::Expr = q!(&[#elems]);
+            expr
         })
-        .map(Box::new)
-        .map(|expr| {
-            syn::Expr::Reference(syn::ExprReference {
-                attrs: Default::default(),
-                and_token: Default::default(),
-                mutability: None,
-                expr,
-            })
-        })
-        .map(Box::new)
         .into_iter()
         .zip(names)
-        .map(|(expr, name)| syn::ItemConst {
-            attrs: Default::default(),
-            vis: syn::Visibility::Public(Default::default()),
-            const_token: Default::default(),
-            ident: syn::Ident::new(name, proc_macro2::Span::call_site()),
-            generics: syn::Generics {
-                lt_token: None,
-                params: Default::default(),
-                gt_token: Default::default(),
-                where_clause: Default::default(),
-            },
-            colon_token: Default::default(),
-            ty: Box::new(syn::Type::Reference(syn::TypeReference {
-                and_token: Default::default(),
-                lifetime: None,
-                mutability: None,
-                elem: Box::new(syn::Type::Slice(syn::TypeSlice {
-                    bracket_token: Default::default(),
-                    elem: Box::new(syn::Type::Reference(syn::TypeReference {
-                        and_token: Default::default(),
-                        lifetime: None,
-                        mutability: None,
-                        elem: Box::new(syn::Type::Path(syn::TypePath {
-                            qself: None,
-                            path: syn::Ident::new("str", proc_macro2::Span::call_site()).into(),
-                        })),
-                    })),
-                })),
-            })),
-            eq_token: Default::default(),
-            expr,
-            semi_token: Default::default(),
+        .map(|(expr, name)| {
+            let ident = syn::Ident::new(name, Span::call_site());
+            q!(
+                pub const #ident: &[&str] = #expr;
+            )
         })
         .map(syn::Item::Const)
 }
@@ -149,7 +121,7 @@ fn main() {
     let f = syn::File {
         shebang: None,
         attrs: Default::default(),
-        items: register_entities(proc_macro2::Span::call_site(), contents).collect(),
+        items: register_entities(Span::call_site(), contents).collect(),
     };
 
     fs::write(&dest_path, f.to_token_stream().to_string()).unwrap();

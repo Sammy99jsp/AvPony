@@ -8,27 +8,38 @@ use entity::Entity;
 use tag::Tag;
 use text::Text;
 
-use crate::utils::{ParseableExt, PonyParser};
+#[cfg(test)]
+use crate::syntax::external::TestLang;
+
+use crate::{
+    syntax::external::{External, ExternalExpr},
+    utils::{ParseableCloned, PonyParser},
+};
 
 pub mod entity;
 pub mod tag;
 pub mod text;
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
-pub enum Node {
+pub enum Node<Ext: External> {
     Text(Text),
     Entity(Entity),
-    Tag(Tag),
+    Tag(Tag<Ext>),
+    Mustache(ExternalExpr<Ext>),
 }
 
-impl ParseableExt for Node {
-    fn parser() -> impl PonyParser<Self> + Clone {
+impl<Ext: External + 'static> ParseableCloned for Node<Ext> {
+    fn parser<'src>() -> impl PonyParser<'src, Self> + Clone {
         recursive(|node| {
             choice((
                 Text::parser().map(Self::Text),
                 Entity::parser().map(Self::Entity),
                 Tag::parser_with(node.clone()).map(Self::Tag),
+                ExternalExpr::parser().map(Self::Mustache),
             ))
         })
     }
 }
+
+#[cfg(test)]
+pub type TNode = Node<TestLang>;

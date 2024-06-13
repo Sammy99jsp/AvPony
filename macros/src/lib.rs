@@ -1,7 +1,6 @@
-#![feature(proc_macro_diagnostic)]
+#![feature(proc_macro_diagnostic, option_get_or_insert_default)]
 
 use errors::generate_error_enum;
-use proc_macro::{Diagnostic, Level, Span};
 use quote::ToTokens;
 use syn::{parse_macro_input, spanned::Spanned};
 
@@ -12,6 +11,9 @@ mod keywords;
 mod punctuation;
 mod punctuations;
 mod spanned;
+mod utils;
+
+pub(crate) use utils::*;
 
 ///
 /// ## INTERNAL-ONLY MACRO.
@@ -36,15 +38,12 @@ pub fn derive_spanned(target: proc_macro::TokenStream) -> proc_macro::TokenStrea
     let res = match item {
         syn::Item::Struct(st) => spanned::struct_impl(st),
         syn::Item::Enum(en) => spanned::enum_impl(en),
-        _ => {
-            Diagnostic::spanned(
-                Span::call_site(),
-                Level::Error,
-                "You can only use this macro on an enum or struct declaration",
-            )
-            .emit();
-            Err(())
-        }
+
+        #[allow(clippy::unit_arg)]
+        _ => Err(fatal_error(
+            None,
+            "You can only use this macro on an enum or struct declaration",
+        )),
     };
 
     match res {
@@ -121,87 +120,7 @@ pub fn Keywords(
     args: proc_macro::TokenStream,
     target: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
-    let ident: syn::Ident = match syn::parse(args) {
-        Ok(ident) => ident,
-        Err(_) => {
-            Diagnostic::spanned(
-                Span::call_site(),
-                Level::Error,
-                "Missing identifier. Syntax expected: `#![keywords(IDENT)]`.",
-            )
-            .emit();
-
-            return Default::default();
-        }
-    };
-
-    let mut kw_mod: syn::ItemMod = match syn::parse(target) {
-        Ok(kw_mod) => kw_mod,
-        Err(_) => {
-            Diagnostic::spanned(
-                Span::call_site(),
-                Level::Error,
-                "Only call this macro on an inline module!",
-            )
-            .emit();
-
-            return Default::default();
-        }
-    };
-
-    let keywords = keywords::get_keyword_structs(&kw_mod).collect::<Vec<_>>();
-
-    kw_mod
-        .content
-        .get_or_insert((Default::default(), Vec::new()))
-        .1
-        .push(syn::Item::Const(syn::ItemConst {
-            attrs: Default::default(),
-            vis: syn::Visibility::Public(Default::default()),
-            const_token: Default::default(),
-            ident,
-            generics: keyword::no_generics(),
-            colon_token: Default::default(),
-            ty: Box::new(syn::Type::Reference(syn::TypeReference {
-                and_token: Default::default(),
-                lifetime: None,
-                mutability: None,
-                elem: Box::new(syn::Type::Slice(syn::TypeSlice {
-                    bracket_token: Default::default(),
-                    elem: Box::new(syn::Type::Reference(syn::TypeReference {
-                        and_token: Default::default(),
-                        lifetime: None,
-                        mutability: None,
-                        elem: Box::new(syn::Type::Path(syn::TypePath {
-                            qself: None,
-                            path: syn::Ident::new("str", proc_macro2::Span::call_site()).into(),
-                        })),
-                    })),
-                })),
-            })),
-            eq_token: Default::default(),
-            expr: Box::new(syn::Expr::Reference(syn::ExprReference {
-                attrs: Default::default(),
-                and_token: Default::default(),
-                mutability: None,
-                expr: Box::new(syn::Expr::Array(syn::ExprArray {
-                    attrs: Default::default(),
-                    bracket_token: Default::default(),
-                    elems: syn::punctuated::Punctuated::from_iter(keywords.into_iter().map(|kw| {
-                        syn::Expr::Lit(syn::ExprLit {
-                            attrs: Default::default(),
-                            lit: syn::Lit::Str(syn::LitStr::new(
-                                &kw,
-                                proc_macro2::Span::call_site(),
-                            )),
-                        })
-                    })),
-                })),
-            })),
-            semi_token: Default::default(),
-        }));
-
-    kw_mod.into_token_stream().into()
+    keywords::make_keywords_module(args, target)
 }
 
 ///
@@ -265,31 +184,7 @@ pub fn Punctuations(
     list: proc_macro::TokenStream,
     target: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
-    let buckets: syn::punctuated::Punctuated<syn::Ident, syn::Token![,]> =
-        syn::parse_macro_input!(list with syn::punctuated::Punctuated::parse_separated_nonempty);
-    let mut module: syn::ItemMod = syn::parse_macro_input!(target);
-
-    let consts: Vec<_> = punctuations::collect_punctuation_structs(
-        module
-            .content
-            .as_ref()
-            .map(|(_, items)| {
-                items.iter().filter_map(|item| match item {
-                    syn::Item::Struct(s) => Some(s),
-                    _ => None,
-                })
-            })
-            .into_iter()
-            .flatten(),
-        buckets.iter(),
-    )
-    .collect();
-
-    if let Some((_, items)) = module.content.as_mut() {
-        items.extend(consts.into_iter().map(syn::Item::Const))
-    }
-
-    module.into_token_stream().into()
+    punctuations::make_module(list, target)
 }
 
 ///
@@ -327,16 +222,7 @@ pub fn ErrorType(
 
     let items_out = match item {
         syn::Item::Struct(st) => error::impl_struct(target, st),
-        it => {
-            Diagnostic::spanned(
-                it.span().unwrap(),
-                Level::Error,
-                "Expected a struct declaration here!",
-            )
-            .emit();
-
-            return Default::default();
-        }
+        it => return fatal_error(it.span(), "Expected a struct declaration here!"),
     };
 
     let mut tokens = proc_macro2::TokenStream::new();
@@ -362,7 +248,7 @@ pub fn ErrorType(
 /// use crate::utils::{Span, ErrorI};
 ///
 /// mod unmatched_brackets;
-/// 
+///
 /// #[Errors]
 /// pub enum Error {
 ///     UnmatchedBrackets(unmatched_brackets::UnmatchedBrackets),

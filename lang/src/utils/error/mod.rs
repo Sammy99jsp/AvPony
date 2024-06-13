@@ -3,11 +3,21 @@
 //!
 
 pub mod external;
+pub mod html_ref;
+pub mod identifier;
+pub mod number;
+pub mod string;
+pub mod tag;
 
 use ariadne::{Color, ColorGenerator, Fmt, Label, ReportKind};
 use avpony_macros::{Errors, Spanned};
 use chumsky::util::MaybeRef;
 use external::typescript::TSError;
+use html_ref::*;
+use identifier::*;
+use number::*;
+use string::*;
+use tag::*;
 
 use super::{PonyInput, Span};
 
@@ -19,6 +29,16 @@ pub trait ErrorI: Sized + super::Spanned + PartialEq {
 pub enum Error {
     UnexpectedToken(UnexpectedToken),
     TSError(TSError),
+    InvalidInt(InvalidInt),
+    MultipleNumericDividers(MultipleNumericDividers),
+    DivdersBadlyPlaced(DivdersBadlyPlaced),
+    ReservedIdentifier(ReservedIdentifier),
+    InvalidUnicodeCodePoint(InvalidUnicodeCodePoint),
+    InvalidAsciiCode(InvalidAsciiCode),
+    InvalidEscapeSequence(InvalidEscapeSequence),
+    SoloExprOnly(SoloExprOnly),
+    InvalidEntityName(InvalidEntityName),
+    UnclosedTag(UnclosedTag),
 }
 
 impl<'src> chumsky::error::Error<'src, PonyInput<'src>> for Error {
@@ -37,7 +57,6 @@ impl<'src> chumsky::error::Error<'src, PonyInput<'src>> for Error {
         })
     }
 }
-
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct UnexpectedToken {

@@ -16,18 +16,22 @@ use chumsky::{primitive::just, text, Parser};
 
 use crate::utils::{PonyParser, Span};
 
+use super::external::External;
+
 #[derive(Debug, Clone, Spanned, PartialEq)]
-pub struct Parenthesized {
+pub struct Parenthesized<Ext: External> {
     span: Span,
-    pub inner: Box<super::Expr>,
+    pub inner: Box<super::Expr<Ext>>,
 }
 
-impl Parenthesized {
-    pub fn parse_with(expr: impl PonyParser<super::Expr> + Clone) -> impl PonyParser<Self> + Clone {
+impl<Ext: External> Parenthesized<Ext> {
+    pub fn parse_with<'src>(
+        expr: impl PonyParser<'src, super::Expr<Ext>> + Clone,
+    ) -> impl PonyParser<'src, Self> + Clone {
         expr.padded_by(text::whitespace())
             .delimited_by(just("("), just(")"))
-            .map_with_span(|inner, span| Self {
-                span,
+            .map_with(|inner, ctx| Self {
+                span: ctx.span(),
                 inner: Box::new(inner),
             })
     }
@@ -39,8 +43,8 @@ mod tests {
 
     use crate::{
         lexical::Literal,
-        syntax::Expr,
-        utils::{stream::SourceFile, Parseable},
+        syntax::VExpr as Expr,
+        utils::{Parseable, SourceFile},
     };
 
     #[test]
@@ -48,7 +52,7 @@ mod tests {
         let (source, _) = SourceFile::test_file(r#"(1)"#);
         let res = Expr::parser().parse(source.stream());
         assert!(matches!(
-            res,
+            res.into_result(),
             Ok(Expr::Parenthesised(super::Parenthesized {
                 inner: box Expr::Literal(Literal::Number(_)),
                 ..
@@ -58,7 +62,7 @@ mod tests {
         let (source, _) = SourceFile::test_file(r#"((.a = 1))"#);
         let res = Expr::parser().parse(source.stream());
         assert!(matches!(
-            res,
+            res.into_result(),
             Ok(Expr::Parenthesised(super::Parenthesized {
                 inner: box Expr::Map(_),
                 ..
@@ -68,7 +72,7 @@ mod tests {
         let (source, _) = SourceFile::test_file(r#"(((.a = 1)))"#);
         let res = Expr::parser().parse(source.stream());
         assert!(matches!(
-            res,
+            res.into_result(),
             Ok(Expr::Parenthesised(super::Parenthesized {
                 inner:
                     box Expr::Parenthesised(super::Parenthesized {

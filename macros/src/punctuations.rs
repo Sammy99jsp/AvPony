@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 
-use crate::keyword::no_generics;
+use quote::ToTokens;
 
-pub fn collect_punctuation_structs<'a, 'iter: 'a, I: ToString + 'static>(
+use crate::{ident, q};
+
+fn collect_punctuation_structs<'a, 'iter: 'a, I: ToString + 'static>(
     structs: impl Iterator<Item = &'a syn::ItemStruct>,
     buckets: impl Iterator<Item = &'a I>,
 ) -> impl Iterator<Item = syn::ItemConst> {
@@ -29,28 +31,42 @@ pub fn collect_punctuation_structs<'a, 'iter: 'a, I: ToString + 'static>(
         });
 
     buckets.map(I::to_string).filter_map(move |bucket| {
-        hash_map.get(&bucket).map(|chars| syn::ItemConst {
-            attrs: Default::default(),
-            vis: syn::Visibility::Public(Default::default()),
-            const_token: Default::default(),
-            ident: syn::Ident::new(&bucket.to_uppercase(), proc_macro2::Span::call_site()),
-            generics: no_generics(),
-            colon_token: Default::default(),
-            ty: Box::new(syn::Type::Reference(syn::TypeReference {
-                and_token: Default::default(),
-                lifetime: None,
-                mutability: None,
-                elem: Box::new(syn::Type::Path(syn::TypePath {
-                    qself: None,
-                    path: syn::Ident::new("str", proc_macro2::Span::call_site()).into(),
-                })),
-            })),
-            eq_token: Default::default(),
-            expr: Box::new(syn::Expr::Lit(syn::ExprLit {
-                attrs: Default::default(),
-                lit: syn::Lit::Str(syn::LitStr::new(chars, proc_macro2::Span::call_site())),
-            })),
-            semi_token: Default::default(),
+        hash_map.get(&bucket).map(|chars| {
+            let bucket = ident(&bucket.to_uppercase());
+            q!(
+                pub const #bucket: &str = #chars;
+            )
         })
     })
+}
+
+pub fn make_module(
+    list: proc_macro::TokenStream,
+    target: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    let buckets: syn::punctuated::Punctuated<syn::Ident, syn::Token![,]> =
+        syn::parse_macro_input!(list with syn::punctuated::Punctuated::parse_separated_nonempty);
+    let mut module: syn::ItemMod = syn::parse_macro_input!(target);
+
+    let consts: Vec<_> = collect_punctuation_structs(
+        module
+            .content
+            .as_ref()
+            .map(|(_, items)| {
+                items.iter().filter_map(|item| match item {
+                    syn::Item::Struct(s) => Some(s),
+                    _ => None,
+                })
+            })
+            .into_iter()
+            .flatten(),
+        buckets.iter(),
+    )
+    .collect();
+
+    if let Some((_, items)) = module.content.as_mut() {
+        items.extend(consts.into_iter().map(syn::Item::Const))
+    }
+
+    module.into_token_stream().into()
 }

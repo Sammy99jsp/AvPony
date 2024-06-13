@@ -16,15 +16,12 @@ pub fn is_span_type(ty: &syn::Type) -> bool {
     false
 }
 
-pub fn path_to_span() -> syn::Path {
-    syn::Path {
-        leading_colon: None,
-        segments: Punctuated::from_iter(
-            ["crate", "utils", "Span"]
-                .into_iter()
-                .map(|seg| syn::Ident::new(seg, proc_macro2::Span::call_site()))
-                .map(syn::PathSegment::from),
-        ),
+#[allow(non_snake_case)]
+pub mod Span {
+    use crate::q;
+
+    pub fn path() -> syn::Path {
+        q!(crate::utils::Span)
     }
 }
 
@@ -91,6 +88,8 @@ mod spanned {
     }
 
     pub mod span {
+        use crate::spanned::Span;
+
         pub fn path() -> syn::Path {
             syn::Path {
                 leading_colon: None,
@@ -150,7 +149,7 @@ mod spanned {
                     Default::default(),
                     Box::new(syn::Type::Path(syn::TypePath {
                         qself: None,
-                        path: super::super::path_to_span(),
+                        path: Span::path(),
                     })),
                 ),
             }

@@ -3,14 +3,14 @@
 //!
 
 use ariadne::{ColorGenerator, Fmt, Label, ReportKind};
-use avpony_macros::Spanned;
+use avpony_macros::ErrorType;
 
 use crate::{
     ponyx::tag::name::TagName,
     utils::{Span, Spanned},
 };
 
-#[derive(Debug, Clone, Spanned, PartialEq)]
+#[ErrorType(crate::utils::Error)]
 pub struct SoloExprOnly {
     span: Span,
 }
@@ -21,17 +21,7 @@ impl SoloExprOnly {
     }
 }
 
-impl From<SoloExprOnly> for super::Error {
-    fn from(value: SoloExprOnly) -> Self {
-        Self::SoloExprOnly(value)
-    }
-}
-
 impl super::ErrorI for SoloExprOnly {
-    fn with_label(self, _: <super::Error as chumsky::Error<char>>::Label) -> Self {
-        self
-    }
-
     fn to_report(self) -> ariadne::Report<'static, crate::utils::Span> {
         let mut colors = ColorGenerator::new();
 
@@ -50,7 +40,7 @@ impl super::ErrorI for SoloExprOnly {
     }
 }
 
-#[derive(Debug, Clone, Spanned, PartialEq)]
+#[ErrorType(crate::utils::Error)]
 pub struct UnclosedTag {
     span: Span,
     opening: (Span, String),
@@ -67,17 +57,7 @@ impl UnclosedTag {
     }
 }
 
-impl From<UnclosedTag> for super::Error {
-    fn from(value: UnclosedTag) -> Self {
-        Self::UnclosedTag(value)
-    }
-}
-
 impl super::ErrorI for UnclosedTag {
-    fn with_label(self, _: <super::Error as chumsky::Error<char>>::Label) -> Self {
-        self
-    }
-
     fn to_report(self) -> ariadne::Report<'static, crate::utils::Span> {
         let mut colors = ColorGenerator::new();
         let opening = colors.next();

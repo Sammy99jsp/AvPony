@@ -15,40 +15,47 @@
 use avpony_macros::Spanned;
 use chumsky::{
     primitive::just,
-    text::{self, TextParser},
+    text::{self},
     Parser,
 };
 
 use crate::{
     lexical::{identifier::Identifier, punctuation},
-    utils::{ParseableExt, PonyParser, Span},
+    utils::{ParseableCloned, PonyParser, Span},
 };
 
-use super::utils::Punctuated;
+use super::{external::External, utils::Punctuated};
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
-pub struct Map {
+pub struct Map<Ext: External> {
     span: Span,
-    pub fields: Punctuated<Field, punctuation::Comma>,
+    pub fields: Punctuated<Field<Ext>, punctuation::Comma>,
 }
 
-impl Map {
-    pub fn parse_with(expr: impl PonyParser<super::Expr> + Clone) -> impl PonyParser<Self> + Clone {
+impl<Ext: External> Map<Ext> {
+    pub fn parse_with<'src>(
+        expr: impl PonyParser<'src, super::Expr<Ext>> + Clone,
+    ) -> impl PonyParser<'src, Self> + Clone {
         Punctuated::<_, punctuation::Comma>::optional_trailing_with(Field::parse_with(expr))
             .padded()
             .delimited_by(just("("), just(")"))
-            .map_with_span(|fields, span| Self { span, fields })
+            .map_with(|fields, ctx| Self {
+                span: ctx.span(),
+                fields,
+            })
     }
 }
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
-pub enum Field {
+pub enum Field<Ext: External> {
     Key(FieldKey),
-    KeyValue(FieldKeyValue),
+    KeyValue(FieldKeyValue<Ext>),
 }
 
-impl Field {
-    fn parse_with(expr: impl PonyParser<super::Expr> + Clone) -> impl PonyParser<Self> + Clone {
+impl<Ext: External> Field<Ext> {
+    fn parse_with<'src>(
+        expr: impl PonyParser<'src, super::Expr<Ext>> + Clone,
+    ) -> impl PonyParser<'src, Self> + Clone {
         just(".")
             .ignore_then(Identifier::parser().then_ignore(text::whitespace()))
             .then(
@@ -57,10 +64,17 @@ impl Field {
                     .ignore_then(expr.map(Box::new).padded_by(text::whitespace()))
                     .or_not(),
             )
-            .map_with_span(|(key, value), span| {
+            .map_with(|(key, value), ctx| {
                 match value {
-                    Some(value) => Self::KeyValue(FieldKeyValue { span, key, value }),
-                    None => Self::Key(FieldKey { span, ident: key }),
+                    Some(value) => Self::KeyValue(FieldKeyValue {
+                        span: ctx.span(),
+                        key,
+                        value,
+                    }),
+                    None => Self::Key(FieldKey {
+                        span: ctx.span(),
+                        ident: key,
+                    }),
                 }
                 .clone()
             })
@@ -74,10 +88,10 @@ pub struct FieldKey {
 }
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
-pub struct FieldKeyValue {
+pub struct FieldKeyValue<Ext: External> {
     span: Span,
     key: Identifier,
-    value: Box<super::Expr>,
+    value: Box<super::Expr<Ext>>,
 }
 
 #[cfg(test)]
@@ -86,15 +100,16 @@ mod tests {
 
     use crate::{
         lexical::Literal,
-        syntax::{utils::Punctuated, Expr},
-        utils::{stream::SourceFile, Parseable},
+        syntax::{utils::Punctuated, VExpr as Expr},
+        utils::{Parseable, SourceFile},
     };
 
     #[test]
     fn parse_map() {
         let (source, _) = SourceFile::test_file(r#"(.a, .if_="")"#);
         let res = Expr::parser().parse(source.stream());
-        assert!(matches!(res,
+        println!("{res:#?}");
+        assert!(matches!(res.into_result(),
             Ok(Expr::Map(super::Map { fields: Punctuated { inner, .. }, ..}))
                 if matches!(inner.as_slice(), [
                     super::Field::Key(super::FieldKey { ident, ..}),
@@ -105,7 +120,7 @@ mod tests {
 
         let (source, _) = SourceFile::test_file(r#"(.nested=(.a=1, .b=2),)"#);
         let res = Expr::parser().parse(source.stream());
-        assert!(matches!(res,
+        assert!(matches!(res.into_result(),
         Ok(Expr::Map(super::Map { fields: Punctuated { inner, .. }, ..}))
             if matches!(inner.as_slice(), [
                 super::Field::KeyValue(super::FieldKeyValue {
@@ -123,7 +138,7 @@ mod tests {
 
         let (source, _) = SourceFile::test_file(r#"()"#);
         let res = Expr::parser().parse(source.stream());
-        assert!(matches!(res,
+        assert!(matches!(res.into_result(),
         Ok(Expr::Map(super::Map { fields: Punctuated { inner, .. }, ..}))
             if matches!(inner.as_slice(), []
         )));

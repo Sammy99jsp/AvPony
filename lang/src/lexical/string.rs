@@ -19,8 +19,16 @@
 
 use avpony_macros::Spanned;
 use chumsky::{
-    primitive::{choice, filter, just, one_of},
-    Parser,
+    primitive::{any, choice, just, one_of},
+    IterParser, Parser,
+};
+
+use crate::utils::{
+    error::{
+        string::{InvalidAsciiCode, InvalidEscapeSequence, InvalidUnicodeCodePoint},
+        Error,
+    },
+    ParseableCloned, PonyParser, Span,
 };
 
 // TODO: There's definitely a better approach out there,
@@ -66,28 +74,24 @@ where
         .sum()
 }
 
-use crate::utils::{
-    errors::{
-        string::{InvalidAsciiCode, InvalidEscapeSequence, InvalidUnicodeCodePoint},
-        Error,
-    },
-    ParseableExt, Span,
-};
-
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct StringLit {
     span: Span,
     pub value: String,
 }
-impl ParseableExt for StringLit {
-    fn parser() -> impl crate::utils::PonyParser<Self> + Clone {
+impl ParseableCloned for StringLit {
+    fn parser<'src>() -> impl PonyParser<'src, Self> + Clone {
         StringPart::parser()
             .repeated()
+            .collect::<Vec<_>>()
             .delimited_by(just("\""), just("\""))
-            .map_with_span(|parts, span| {
+            .map_with(|parts, ctx| {
                 let mut value = String::new();
                 parts.iter().for_each(|part| part.write_value(&mut value));
-                Self { span, value }
+                Self {
+                    span: ctx.span(),
+                    value,
+                }
             })
     }
 }
@@ -119,8 +123,8 @@ impl StringPart {
     }
 }
 
-impl ParseableExt for StringPart {
-    fn parser() -> impl crate::utils::PonyParser<Self> + Clone {
+impl ParseableCloned for StringPart {
+    fn parser<'src>() -> impl PonyParser<'src, Self> + Clone {
         choice((
             Verbatim::parser().map(Self::Verbatim),
             QuoteEscape::parser().map(Self::QuoteEscape),
@@ -142,15 +146,16 @@ pub struct Verbatim {
     value: String,
 }
 
-impl ParseableExt for Verbatim {
-    fn parser() -> impl crate::utils::PonyParser<Self> + Clone {
-        one_of("\"\\\r")
-            .not()
+impl ParseableCloned for Verbatim {
+    fn parser<'src>() -> impl PonyParser<'src, Self> + Clone {
+        any()
+            .and_is(one_of("\"\\\r").not())
             .repeated()
             .at_least(1)
-            .map_with_span(|value, span| {
-                let value = value.into_iter().collect::<String>();
-                Self { span, value }
+            .collect::<String>()
+            .map_with(|value, ctx| Self {
+                span: ctx.span(),
+                value,
             })
     }
 }
@@ -161,15 +166,18 @@ pub struct QuoteEscape {
     value: char,
 }
 
-impl ParseableExt for QuoteEscape {
-    fn parser() -> impl crate::utils::PonyParser<Self> + Clone {
+impl ParseableCloned for QuoteEscape {
+    fn parser<'src>() -> impl PonyParser<'src, Self> + Clone {
         just("\\")
             .ignore_then(choice((just("\'"), just("\""))))
-            .map_with_span(|value, span| {
+            .map_with(|value, ctx| {
                 // Unwrap ok -- there's exactly one charcter!
                 let value = value.chars().next().unwrap();
 
-                Self { span, value }
+                Self {
+                    span: ctx.span(),
+                    value,
+                }
             })
     }
 }
@@ -180,31 +188,51 @@ pub struct AsciiEscape {
     value: char,
 }
 
-impl ParseableExt for AsciiEscape {
-    fn parser() -> impl crate::utils::PonyParser<Self> + Clone {
-        let hex_digits = filter(|ch: &char| ch.is_ascii_hexdigit()).repeated();
+impl ParseableCloned for AsciiEscape {
+    fn parser<'src>() -> impl PonyParser<'src, Self> + Clone {
+        let hex_digit = any().filter(|ch: &char| ch.is_ascii_hexdigit());
 
         just("\\").ignore_then(choice((
             just("x")
-                .ignore_then(hex_digits.at_least(1).at_most(2))
-                .map(|hex| hex_nibbles_to_u32(hex))
-                .try_map(|value: u32, span| {
+                .ignore_then(hex_digit.repeated().at_least(1).at_most(2).collect())
+                .validate(|raw: Vec<_>, ctx, emit| {
+                    let value = hex_nibbles_to_u32(raw);
+
                     // If code is higher than original (non-extended) 7-bit ASCII codes,
                     // it's not a valid ASCII escape -- I know, shocker(!)
                     if value >= 0x80 {
-                        return Err(Error::InvalidAsciiCode(InvalidAsciiCode::new(span, value)));
+                        emit.emit(InvalidAsciiCode::new(ctx.span(), value).into());
+                        return AsciiEscape {
+                            span: ctx.span(),
+                            value: char::try_from(value).unwrap(),
+                        };
                     }
 
-                    Ok(AsciiEscape {
-                        span,
-                        value: char::from_u32(value).unwrap(),
-                    })
+                    AsciiEscape {
+                        span: ctx.span(),
+                        value: char::try_from(value).unwrap(),
+                    }
                 }),
-            just("n").map_with_span(|_, span| AsciiEscape { span, value: '\n' }),
-            just("r").map_with_span(|_, span| AsciiEscape { span, value: '\r' }),
-            just("t").map_with_span(|_, span| AsciiEscape { span, value: '\t' }),
-            just("\\").map_with_span(|_, span| AsciiEscape { span, value: '\\' }),
-            just("0").map_with_span(|_, span| AsciiEscape { span, value: '\0' }),
+            just("n").map_with(|_, ctx| AsciiEscape {
+                span: ctx.span(),
+                value: '\n',
+            }),
+            just("r").map_with(|_, ctx| AsciiEscape {
+                span: ctx.span(),
+                value: '\r',
+            }),
+            just("t").map_with(|_, ctx| AsciiEscape {
+                span: ctx.span(),
+                value: '\t',
+            }),
+            just("\\").map_with(|_, ctx| AsciiEscape {
+                span: ctx.span(),
+                value: '\\',
+            }),
+            just("0").map_with(|_, ctx| AsciiEscape {
+                span: ctx.span(),
+                value: '\0',
+            }),
         )))
     }
 }
@@ -215,14 +243,15 @@ pub struct UnicodeEscape {
     value: char,
 }
 
-impl ParseableExt for UnicodeEscape {
-    fn parser() -> impl crate::utils::PonyParser<Self> + Clone {
-        let hex_digits = filter(|ch: &char| ch.is_ascii_hexdigit()).repeated();
+impl ParseableCloned for UnicodeEscape {
+    fn parser<'src>() -> impl PonyParser<'src, Self> + Clone {
+        let hex_digits = any().filter(|ch: &char| ch.is_ascii_hexdigit()).repeated();
         just("\\u")
             .ignore_then(
                 hex_digits
                     .at_least(1)
                     .at_most(6)
+                    .collect::<Vec<_>>()
                     .delimited_by(just("{"), just("}")),
             )
             .map(|hex| {
@@ -233,14 +262,23 @@ impl ParseableExt for UnicodeEscape {
                     .map(|(nibble, val)| val << (4 * nibble))
                     .sum()
             })
-            .try_map(|code_point: u32, span: Span| {
-                char::from_u32(code_point)
+            .validate(|code_point: u32, ctx, emitter| {
+                match char::from_u32(code_point)
                     .map(|value| Self {
-                        span: span.clone(),
+                        span: ctx.span(),
                         value,
                     })
-                    .ok_or(InvalidUnicodeCodePoint::new(span, code_point))
-                    .map_err(Into::into)
+                    .ok_or(InvalidUnicodeCodePoint::new(ctx.span(), code_point))
+                {
+                    Ok(ok) => ok,
+                    Err(err) => {
+                        emitter.emit(err.into());
+                        UnicodeEscape {
+                            span: ctx.span(),
+                            value: '\0',
+                        }
+                    }
+                }
             })
     }
 }
@@ -250,9 +288,9 @@ pub struct StringContinue {
     span: Span,
 }
 
-impl ParseableExt for StringContinue {
-    fn parser() -> impl crate::utils::PonyParser<Self> + Clone {
-        just("\\\n").map_with_span(|_, span| Self { span })
+impl ParseableCloned for StringContinue {
+    fn parser<'src>() -> impl PonyParser<'src, Self> + Clone {
+        just("\\\n").map_with(|_, ctx| Self { span: ctx.span() })
     }
 }
 
@@ -262,7 +300,7 @@ mod tests {
 
     use crate::{
         lexical::string::StringLit,
-        utils::{self, stream::SourceFile, Parseable},
+        utils::{Error, Parseable, SourceFile},
     };
 
     #[test]
@@ -288,18 +326,18 @@ mod tests {
         assert!(matches!(
             StringLit::parser()
                 .parse(source.stream())
-                .unwrap_err()
+                .into_errors()
                 .first(),
-            Some(utils::errors::Error::UnexpectedToken(_))
+            Some(Error::UnexpectedToken(_))
         ));
 
         let (source, _) = SourceFile::test_file("\"aaaa");
         assert!(matches!(
             StringLit::parser()
                 .parse(source.stream())
-                .unwrap_err()
+                .into_errors()
                 .first(),
-            Some(utils::errors::Error::UnexpectedToken(_))
+            Some(Error::UnexpectedToken(_))
         ));
     }
 
@@ -324,18 +362,14 @@ mod tests {
         );
 
         let (source, _) = SourceFile::test_file("\"\\x7F\\x65\"");
-        assert_eq!(
-            StringLit::parser().parse(source.stream()).unwrap().value,
-            "\x7F\x65",
-        );
+        let res = StringLit::parser().parse(source.stream());
+        assert_eq!(res.unwrap().value, "\x7F\x65",);
 
         let (source, _) = SourceFile::test_file("\"\\xFF\"");
+        let res = StringLit::parser().parse(source.stream());
         assert!(matches!(
-            StringLit::parser()
-                .parse(source.stream())
-                .unwrap_err()
-                .first(),
-            Some(utils::errors::Error::InvalidAsciiCode(_)),
+            res.errors().next(),
+            Some(Error::InvalidAsciiCode(_)),
         ));
 
         let (source, _) = SourceFile::test_file("\"\\u{FF}\"");
@@ -345,12 +379,10 @@ mod tests {
         );
 
         let (source, _) = SourceFile::test_file("\"\\u{D800}\"");
+        let res = StringLit::parser().parse(source.stream());
         assert!(matches!(
-            StringLit::parser()
-                .parse(source.stream())
-                .unwrap_err()
-                .first(),
-            Some(utils::errors::Error::InvalidUnicodeCodePoint(_)),
+            res.into_errors().first(),
+            Some(Error::InvalidUnicodeCodePoint(_)),
         ));
     }
 }

@@ -9,26 +9,28 @@
 use avpony_macros::Spanned;
 use chumsky::{text, Parser};
 
-use crate::utils::{PonyParser, ParseableExt, Span};
+use crate::utils::{ParseableCloned, PonyParser, Span};
 
-use super::operator::BinaryOperator;
+use super::{external::External, operator::BinaryOperator};
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
-pub struct BinaryOperation {
+pub struct BinaryOperation<Ext: External> {
     span: Span,
     pub operator: BinaryOperator,
-    pub operands: [Box<super::Expr>; 2],
+    pub operands: [Box<super::Expr<Ext>>; 2],
 }
 
-impl BinaryOperation {
-    pub fn parse_with(expr: impl PonyParser<super::Expr> + Clone) -> impl PonyParser<Self> + Clone {
+impl<Ext: External> BinaryOperation<Ext> {
+    pub fn parse_with<'src>(
+        expr: impl PonyParser<'src, super::Expr<Ext>> + Clone,
+    ) -> impl PonyParser<'src, Self> + Clone {
         expr.clone()
             .padded_by(text::whitespace())
             .map(Box::new)
             .then(BinaryOperator::parser())
             .then(expr.padded_by(text::whitespace()).map(Box::new))
-            .map_with_span(|((first, operator), second), span| Self {
-                span,
+            .map_with(|((first, operator), second), ctx| Self {
+                span: ctx.span(),
                 operator,
                 operands: [first, second],
             })
@@ -44,14 +46,14 @@ mod tests {
             number::{IntegerLit, NumberLit},
             Literal,
         },
-        syntax::{operation::BinaryOperation, Expr},
-        utils::{stream::SourceFile, Parseable},
+        syntax::{operation::BinaryOperation, VExpr as Expr},
+        utils::{Parseable, SourceFile},
     };
 
     #[test]
     fn symbols() {
         let (source, _) = SourceFile::test_file(r#"2 -> 4"#);
-        let res = Expr::parser().parse(source.stream());
+        let res = Expr::parser().parse(source.stream()).into_result();
         assert!(matches!(
             res,
             Ok(Expr::BinaryOp(BinaryOperation {
@@ -70,7 +72,7 @@ mod tests {
     #[test]
     fn named() {
         let (source, _) = SourceFile::test_file(r#"2 `to` 4"#);
-        let res = Expr::parser().parse(source.stream());
+        let res = Expr::parser().parse(source.stream()).into_result();
         assert!(matches!(
             res,
             Ok(Expr::BinaryOp(BinaryOperation {

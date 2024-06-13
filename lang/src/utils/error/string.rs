@@ -3,13 +3,13 @@
 //!
 
 use ariadne::{ColorGenerator, Label};
-use avpony_macros::Spanned;
+use avpony_macros::ErrorType;
 
 use crate::utils::Span;
 
 use super::ErrorI;
 
-#[derive(Debug, Clone, Spanned, PartialEq)]
+#[ErrorType(crate::utils::Error)]
 pub struct InvalidUnicodeCodePoint {
     span: Span,
     erroneous: u32,
@@ -21,17 +21,7 @@ impl InvalidUnicodeCodePoint {
     }
 }
 
-impl From<InvalidUnicodeCodePoint> for super::Error {
-    fn from(value: InvalidUnicodeCodePoint) -> Self {
-        Self::InvalidUnicodeCodePoint(value)
-    }
-}
-
 impl ErrorI for InvalidUnicodeCodePoint {
-    fn with_label(self, _: <super::Error as chumsky::Error<char>>::Label) -> Self {
-        self
-    }
-
     fn to_report(self) -> ariadne::Report<'static, crate::utils::Span> {
         let mut colors = ColorGenerator::new();
 
@@ -52,7 +42,7 @@ impl ErrorI for InvalidUnicodeCodePoint {
     }
 }
 
-#[derive(Debug, Clone, Spanned, PartialEq)]
+#[ErrorType(crate::utils::Error)]
 pub struct InvalidAsciiCode {
     span: Span,
     erroneous: u32,
@@ -64,17 +54,7 @@ impl InvalidAsciiCode {
     }
 }
 
-impl From<InvalidAsciiCode> for super::Error {
-    fn from(value: InvalidAsciiCode) -> Self {
-        Self::InvalidAsciiCode(value)
-    }
-}
-
 impl ErrorI for InvalidAsciiCode {
-    fn with_label(self, _: <super::Error as chumsky::Error<char>>::Label) -> Self {
-        self
-    }
-
     fn to_report(self) -> ariadne::Report<'static, crate::utils::Span> {
         let mut colors = ColorGenerator::new();
 
@@ -95,7 +75,7 @@ impl ErrorI for InvalidAsciiCode {
     }
 }
 
-#[derive(Debug, Clone, Spanned, PartialEq)]
+#[ErrorType(crate::utils::Error)]
 pub struct InvalidEscapeSequence {
     span: Span,
 }
@@ -106,17 +86,7 @@ impl InvalidEscapeSequence {
     }
 }
 
-impl From<InvalidEscapeSequence> for super::Error {
-    fn from(value: InvalidEscapeSequence) -> Self {
-        Self::InvalidEscapeSequence(value)
-    }
-}
-
 impl ErrorI for InvalidEscapeSequence {
-    fn with_label(self, _: <super::Error as chumsky::Error<char>>::Label) -> Self {
-        self
-    }
-
     fn to_report(self) -> ariadne::Report<'static, crate::utils::Span> {
         let mut colors = ColorGenerator::new();
 

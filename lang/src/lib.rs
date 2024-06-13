@@ -1,14 +1,15 @@
-#![feature(iter_intersperse, box_patterns)]
+#![feature(iter_intersperse, box_patterns, is_ascii_octdigit)]
 //!
 //! # AvPony
 //! > What is AvPony?
+//! 
 //! AvPony is a new UI language that will be used for AvdanOS components.
 //!
 //! It's an abstraction over Skia, or another graphical backend, with a
 //! JSX-like frontend.
 //!
 //! You can use the language in combination of either:
-//! * ECMA/TypeScript
+//! * TypeScript
 //! * Rust
 //!
 //! ## What does this crate do?
@@ -20,7 +21,7 @@
 //! your Rustup toolchain: `rustup install +nighlty`
 //!
 
-pub mod lexical;
-pub mod utils;
 pub mod syntax;
+pub mod utils;
+pub mod lexical;
 pub mod ponyx;

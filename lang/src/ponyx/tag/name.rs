@@ -9,11 +9,11 @@
 use std::fmt::Display;
 
 use avpony_macros::Spanned;
-use chumsky::{primitive::just, Parser};
+use chumsky::{primitive::just, IterParser, Parser};
 
 use crate::{
     lexical,
-    utils::{ParseableExt, PonyParser, Span},
+    utils::{ParseableCloned, PonyParser, Span},
 };
 
 #[derive(Debug, Clone, Spanned)]
@@ -50,16 +50,17 @@ impl PartialEq<str> for TagName {
     }
 }
 
-impl ParseableExt for TagName {
-    fn parser() -> impl PonyParser<Self> + Clone {
+impl ParseableCloned for TagName {
+    fn parser<'src>() -> impl PonyParser<'src, Self> + Clone {
         lexical::Identifier::parser()
             .then(
                 just(".")
                     .ignore_then(lexical::Identifier::parser())
-                    .repeated(),
+                    .repeated()
+                    .collect::<Vec<_>>(),
             )
-            .map_with_span(|(first, after), span| Self {
-                span,
+            .map_with(|(first, after), ctx| Self {
+                span: ctx.span(),
                 path: std::iter::once(first).chain(after).collect(),
             })
     }

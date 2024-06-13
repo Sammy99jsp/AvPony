@@ -8,15 +8,15 @@
 
 use avpony_macros::Spanned;
 use chumsky::{
-    primitive::{choice, filter, just, one_of},
-    text, Parser,
+    primitive::{any, choice, just, one_of},
+    text, IterParser, Parser,
 };
 
 use crate::{
     lexical::string::hex_nibbles_to_u32,
     utils::{
-        errors::{html_ref::InvalidEntityName, string::InvalidUnicodeCodePoint, Error},
-        ParseableExt, PonyParser, Span,
+        error::{html_ref::InvalidEntityName, string::InvalidUnicodeCodePoint, Error},
+        ParseableCloned, PonyParser, Span,
     },
 };
 
@@ -34,11 +34,13 @@ pub struct Entity {
     pub value: String,
 }
 
-impl ParseableExt for Entity {
-    fn parser() -> impl PonyParser<Self> + Clone {
-        let hex_digits = filter(|ch: &char| ch.is_ascii_hexdigit())
+impl ParseableCloned for Entity {
+    fn parser<'src>() -> impl PonyParser<'src, Self> + Clone {
+        let hex_digits = any()
+            .filter(|ch: &char| ch.is_ascii_hexdigit())
             .repeated()
-            .at_least(1);
+            .at_least(1)
+            .collect::<Vec<_>>();
 
         just("&")
             .ignore_then(choice((
@@ -57,28 +59,30 @@ impl ParseableExt for Entity {
                                 )),
                             }
                         }),
-                    text::digits(10).try_map(|digits: String, span: Span| {
-                        let u: u32 = digits.parse().unwrap();
-                        match char::try_from(u) {
-                            Ok(o) => Ok(Self {
-                                span: span.clone(),
-                                value: o.into(),
-                            }),
-                            Err(_) => Err(Error::InvalidUnicodeCodePoint(
-                                InvalidUnicodeCodePoint::new(span, u),
-                            )),
-                        }
-                    }),
+                    text::digits(10)
+                        .to_slice()
+                        .try_map(|digits: &str, span: Span| {
+                            let u: u32 = digits.parse().unwrap();
+                            match char::try_from(u) {
+                                Ok(o) => Ok(Self {
+                                    span: span.clone(),
+                                    value: o.into(),
+                                }),
+                                Err(_) => Err(Error::InvalidUnicodeCodePoint(
+                                    InvalidUnicodeCodePoint::new(span.clone(), u),
+                                )),
+                            }
+                        }),
                 ))),
-                text::ident().try_map(|name: String, span: Span| {
-                    let val = entities::get_by_name(name.as_str()).map(ToString::to_string);
+                text::ident().to_slice().try_map(|name: &str, span: Span| {
+                    let val = entities::get_by_name(name).map(ToString::to_string);
 
                     match val {
                         Some(value) => Ok(Self {
                             span: span.clone(),
                             value,
                         }),
-                        None => Err(Error::InvalidEntityName(InvalidEntityName::new(span, name))),
+                        None => Err(InvalidEntityName::new(span, name.to_owned()).into()),
                     }
                 }),
             )))
@@ -90,30 +94,30 @@ impl ParseableExt for Entity {
 mod tests {
     use chumsky::Parser;
 
-    use crate::utils::{stream::SourceFile, Parseable};
+    use crate::utils::{Parseable, SourceFile};
 
     use super::Entity;
 
     #[test]
     fn named() {
         let (source, _) = SourceFile::test_file("&nbsp;");
-        assert!(Entity::parser().parse(source.stream()).is_ok());
+        assert!(!Entity::parser().parse(source.stream()).has_errors());
 
         let (source, _) = SourceFile::test_file("&mdash;");
         assert!(matches!(
-            Entity::parser().parse(source.stream()),
+            Entity::parser().parse(source.stream()).into_result(),
             Ok(Entity { value, .. }) if value == "—"
         ));
 
         let (source, _) = SourceFile::test_file("&#0000;");
         assert!(matches!(
-            Entity::parser().parse(source.stream()),
+            Entity::parser().parse(source.stream()).into_result(),
             Ok(Entity { value, .. }) if value == "\x00"
         ));
 
         let (source, _) = SourceFile::test_file("&#x1f44d;");
         assert!(matches!(
-            Entity::parser().parse(source.stream()),
+            Entity::parser().parse(source.stream()).into_result(),
             Ok(Entity { value, .. }) if value == "\u{1f44d}"
         ));
     }

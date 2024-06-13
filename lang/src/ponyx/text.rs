@@ -1,13 +1,16 @@
 //!
 //! ## Text node.
 //!
-//! Literally anything except `{}<>`.
+//! Literally anything except any of `{}<>`.
 //!
 
 use avpony_macros::Spanned;
-use chumsky::{primitive::one_of, Parser};
+use chumsky::{
+    primitive::{any, one_of},
+    IterParser, Parser,
+};
 
-use crate::utils::{ParseableExt, PonyParser, Span};
+use crate::utils::{ParseableCloned, PonyParser, Span};
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct Text {
@@ -15,14 +18,15 @@ pub struct Text {
     pub text: String,
 }
 
-impl ParseableExt for Text {
-    fn parser() -> impl PonyParser<Self> + Clone {
-        one_of("{}<>")
-            .not()
+impl ParseableCloned for Text {
+    fn parser<'src>() -> impl PonyParser<'src, Self> + Clone {
+        any()
+            .and_is(one_of("{}<>").not())
             .repeated()
             .at_least(1)
-            .map_with_span(|text: Vec<char>, span| Self {
-                span,
+            .collect()
+            .map_with(|text: Vec<_>, ctx| Self {
+                span: ctx.span(),
                 text: text.into_iter().collect(),
             })
     }
@@ -30,18 +34,19 @@ impl ParseableExt for Text {
 
 #[cfg(test)]
 mod tests {
-    use chumsky::Parser;
+    use chumsky::{primitive::any, Parser};
 
     use crate::{
         ponyx::text::Text,
-        utils::{stream::SourceFile, Parseable},
+        utils::{Parseable, SourceFile},
     };
 
     #[test]
     fn text() {
         let (source, _) = SourceFile::test_file("    a \n  a <Apple>");
-        assert!(
-            matches!(Text::parser().parse(source.stream()), Ok(Text { text, .. }) if text == "    a \n  a ")
-        );
+        let res = Text::parser()
+            .then_ignore(any().repeated())
+            .parse(source.stream());
+        assert!(matches!(res.into_result(), Ok(Text { text, .. }) if text == "    a \n  a "));
     }
 }

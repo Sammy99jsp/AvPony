@@ -25,8 +25,8 @@ pub enum Literal {
     Boolean(BooleanLit),
 }
 
-impl ParseableExt for Literal {
-    fn parser() -> impl PonyParser<Self> + Clone {
+impl ParseableCloned for Literal {
+    fn parser<'src>() -> impl PonyParser<'src, Self> + Clone {
         choice((
             NumberLit::parser().map(Self::Number),
             StringLit::parser().map(Self::String),

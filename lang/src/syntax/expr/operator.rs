@@ -7,12 +7,12 @@
 use avpony_macros::Spanned;
 use chumsky::{
     primitive::{choice, just, one_of},
-    Parser,
+    IterParser, Parser,
 };
 
 use crate::{
     lexical::{punctuation, Identifier},
-    utils::{ParseableExt, PonyParser, Span},
+    utils::{ParseableCloned, PonyParser, Span},
 };
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
@@ -20,8 +20,8 @@ pub enum UnaryOperator {
     Symbols(Symbolic),
 }
 
-impl ParseableExt for UnaryOperator {
-    fn parser() -> impl PonyParser<Self> + Clone {
+impl ParseableCloned for UnaryOperator {
+    fn parser<'src>() -> impl PonyParser<'src, Self> + Clone {
         Symbolic::parser().map(Self::Symbols)
     }
 }
@@ -32,13 +32,14 @@ pub struct Symbolic {
     pub value: String,
 }
 
-impl ParseableExt for Symbolic {
-    fn parser() -> impl PonyParser<Self> + Clone {
+impl ParseableCloned for Symbolic {
+    fn parser<'src>() -> impl PonyParser<'src, Self> + Clone {
         one_of(punctuation::OPERATOR)
             .repeated()
             .at_least(1)
-            .map_with_span(|symbol, span| Self {
-                span,
+            .collect()
+            .map_with(|symbol: Vec<_>, ctx| Self {
+                span: ctx.span(),
                 value: symbol.into_iter().collect(),
             })
     }
@@ -50,8 +51,8 @@ pub enum BinaryOperator {
     Named(NamedBinary),
 }
 
-impl ParseableExt for BinaryOperator {
-    fn parser() -> impl PonyParser<Self> + Clone {
+impl ParseableCloned for BinaryOperator {
+    fn parser<'src>() -> impl PonyParser<'src, Self> + Clone {
         choice((
             Symbolic::parser().map(Self::Symbols),
             NamedBinary::parser().map(Self::Named),
@@ -74,11 +75,14 @@ pub struct NamedBinary {
     pub ident: Identifier,
 }
 
-impl ParseableExt for NamedBinary {
-    fn parser() -> impl PonyParser<Self> + Clone {
+impl ParseableCloned for NamedBinary {
+    fn parser<'src>() -> impl PonyParser<'src, Self> + Clone {
         Identifier::parser()
             .delimited_by(just("`"), just("`"))
-            .map_with_span(|ident, span| Self { span, ident })
+            .map_with(|ident, ctx| Self {
+                span: ctx.span(),
+                ident,
+            })
     }
 }
 
@@ -89,9 +93,9 @@ mod tests {
     use crate::{
         syntax::{
             operator::{Symbolic, UnaryOperator},
-            Expr,
+            VExpr as Expr,
         },
-        utils::{stream::SourceFile, Parseable},
+        utils::{Parseable, SourceFile},
     };
 
     #[test]
@@ -99,7 +103,7 @@ mod tests {
         let (source, _) = SourceFile::test_file(r#"->"#);
         let res = Expr::parser().parse(source.stream());
         assert!(matches!(
-            res,
+            res.into_result(),
             Ok(Expr::Operator(UnaryOperator::Symbols(Symbolic {
                 value,
                 ..

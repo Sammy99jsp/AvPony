@@ -1,3 +1,7 @@
+//!
+//! Common utilities used throughout parsing.
+//! 
+
 pub mod error;
 pub mod input;
 pub mod span;

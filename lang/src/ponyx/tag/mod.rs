@@ -21,45 +21,47 @@ use attribute::Attribute;
 use avpony_macros::Spanned;
 use chumsky::{
     primitive::{choice, just},
-    text, Parser,
+    text, IterParser, Parser,
 };
 use name::TagName;
 
-use crate::utils::{
-    errors::{tag::UnclosedTag, Error},
-    ParseableExt, PonyParser, Span,
+use crate::{
+    syntax::external::External,
+    utils::{error::tag::UnclosedTag, ParseableCloned, PonyParser, Span},
 };
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
-pub enum Tag {
-    SelfClosing(SelfClosingTag),
-    Enclosing(EnclosingTag),
+pub enum Tag<Ext: External> {
+    SelfClosing(SelfClosingTag<Ext>),
+    Enclosing(EnclosingTag<Ext>),
 }
 
-impl Tag {
-    pub fn parser_with(
-        node: impl PonyParser<super::Node> + Clone,
-    ) -> impl PonyParser<Self> + Clone {
+impl<Ext: External + 'static> Tag<Ext> {
+    pub fn parser_with<'src>(
+        node: impl PonyParser<'src, super::Node<Ext>> + Clone,
+    ) -> impl PonyParser<'src, Self> + Clone {
         just("<")
             .ignore_then(TagName::parser())
             .then(
                 text::whitespace()
                     .at_least(1)
                     .ignore_then(Attribute::parser())
-                    .repeated(),
+                    .repeated()
+                    .collect(),
             )
             .then_ignore(text::whitespace())
             .then(choice((
-                just("/>").ignored().map_with_span(|_, _| None),
+                just("/>").ignored().map(|_| None),
                 just(">")
-                    .ignore_then(node.repeated())
+                    .ignore_then(node.repeated().collect())
                     .then(just("</").ignore_then(TagName::parser()))
-                    .map_with_span(|(children, name), _| Some((children, name))),
+                    .then_ignore(just(">"))
+                    .map(|(children, name)| Some((children, name))),
             )))
             .try_map(|((name, attributes), enclosing), span| {
                 if let Some((children, name_end)) = enclosing {
                     if name != name_end {
-                        return Err(Error::UnclosedTag(UnclosedTag::new(span, name, name_end)));
+                        return Err(UnclosedTag::new(span, name, name_end).into());
                     }
 
                     return Ok(Self::Enclosing(EnclosingTag {
@@ -80,18 +82,18 @@ impl Tag {
 }
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
-pub struct SelfClosingTag {
+pub struct SelfClosingTag<Ext: External> {
     span: Span,
     pub name: TagName,
-    pub attributes: Vec<Attribute>,
+    pub attributes: Vec<Attribute<Ext>>,
 }
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
-pub struct EnclosingTag {
+pub struct EnclosingTag<Ext: External> {
     span: Span,
     pub name: TagName,
-    pub attributes: Vec<Attribute>,
-    pub children: Vec<super::Node>,
+    pub attributes: Vec<Attribute<Ext>>,
+    pub children: Vec<super::Node<Ext>>,
 }
 
 #[cfg(test)]
@@ -106,10 +108,10 @@ mod tests {
                 EnclosingTag, SelfClosingTag, Tag,
             },
             text::Text,
-            Node,
+            TNode as Node,
         },
         syntax::SoloExpr,
-        utils::{stream::SourceFile, Parseable},
+        utils::{ErrorI, Parseable, SourceFile},
     };
 
     #[test]
@@ -117,7 +119,7 @@ mod tests {
         let (source, _) = SourceFile::test_file(r#"<Image a11y:alt="Picture of a rat." active />"#);
         let res = Node::parser().parse(source.stream());
         assert!(matches!(
-            res,
+            res.into_result(),
             Ok(Node::Tag(Tag::SelfClosing(SelfClosingTag {
                 name,
                 attributes,
@@ -138,10 +140,14 @@ mod tests {
                         && value == "Picture of a rat."
                 )
         ));
-        let (source, _) = SourceFile::test_file("<Box>\n  Hey there!\n</Box>");
+        let (source, cache) = SourceFile::test_file("<Box>\n  Hey there!\n</Box>");
         let res = Node::parser().parse(source.stream());
+        res.errors()
+            .try_for_each(|e| e.clone().to_report().eprint(cache.clone()))
+            .unwrap();
+
         assert!(matches!(
-            res,
+            res.into_result(),
             Ok(Node::Tag(Tag::Enclosing(EnclosingTag {
                 name,
                 children,

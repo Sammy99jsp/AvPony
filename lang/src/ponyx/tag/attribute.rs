@@ -30,23 +30,27 @@ use chumsky::{primitive::just, Parser};
 
 use crate::{
     lexical,
-    syntax::SoloExpr,
-    utils::{ParseableExt, PonyParser, Span},
+    syntax::{external::External, SoloExpr},
+    utils::{ParseableCloned, PonyParser, Span},
 };
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
-pub enum Attribute {
+pub enum Attribute<Ext: External> {
     Key(AttributeKey),
-    KeyValue(AttributeAssignment),
+    KeyValue(AttributeAssignment<Ext>),
 }
 
-impl ParseableExt for Attribute {
-    fn parser() -> impl PonyParser<Self> + Clone {
+impl<Ext: External + 'static> ParseableCloned for Attribute<Ext> {
+    fn parser<'src>() -> impl PonyParser<'src, Self> + Clone {
         AttributeKey::parser()
             .then(just("=").ignore_then(SoloExpr::parser()).or_not())
-            .map_with_span(|(key, value), span| match value {
+            .map_with(|(key, value), ctx| match value {
                 None => Self::Key(key),
-                Some(value) => Self::KeyValue(AttributeAssignment { span, key, value }),
+                Some(value) => Self::KeyValue(AttributeAssignment {
+                    span: ctx.span(),
+                    key,
+                    value,
+                }),
             })
     }
 }
@@ -57,18 +61,18 @@ pub enum AttributeKey {
     Directive(Directive),
 }
 
-impl ParseableExt for AttributeKey {
-    fn parser() -> impl PonyParser<Self> + Clone {
+impl ParseableCloned for AttributeKey {
+    fn parser<'src>() -> impl PonyParser<'src, Self> + Clone {
         lexical::Identifier::parser()
             .then(
                 just(":")
                     .ignore_then(lexical::Identifier::parser())
                     .or_not(),
             )
-            .map_with_span(|(base, director), span| match director {
+            .map_with(|(base, director), ctx| match director {
                 None => Self::Named(base),
                 Some(director) => Self::Directive(Directive {
-                    span,
+                    span: ctx.span(),
                     base,
                     director,
                 }),
@@ -86,10 +90,10 @@ pub struct Directive {
 }
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
-pub struct AttributeAssignment {
+pub struct AttributeAssignment<Ext: External> {
     span: Span,
     pub key: AttributeKey,
-    pub value: SoloExpr,
+    pub value: SoloExpr<Ext>,
 }
 
 #[cfg(test)]
@@ -101,23 +105,25 @@ mod tests {
             number::{IntegerLit, NumberLit},
             Literal,
         },
-        ponyx::tag::attribute::{Attribute, AttributeAssignment, AttributeKey, Directive},
-        syntax::SoloExpr,
-        utils::{stream::SourceFile, Parseable},
+        ponyx::tag::attribute::{Attribute as Attr, AttributeAssignment, AttributeKey, Directive},
+        syntax::{external::TestLang, SoloExpr},
+        utils::{Parseable, SourceFile},
     };
+
+    type Attribute = Attr<TestLang>;
 
     #[test]
     fn test() {
         let (source, _) = SourceFile::test_file("active");
         let res = Attribute::parser().parse(source.stream());
         assert!(matches!(
-            res,
+            res.into_result(),
             Ok(Attribute::Key(AttributeKey::Named(ident))) if ident == *"active"
         ));
 
         let (source, _) = SourceFile::test_file("on:click");
         assert!(matches!(
-            Attribute::parser().parse(source.stream()),
+            Attribute::parser().parse(source.stream()).into_result(),
             Ok(Attribute::Key(AttributeKey::Directive(Directive { base, director, ..})))
                 if base == *"on" && director == *"click"
         ));
@@ -125,7 +131,7 @@ mod tests {
         let (source, _) = SourceFile::test_file("value=2");
         let res = Attribute::parser().parse(source.stream());
         assert!(matches!(
-            res,
+            res.into_result(),
             Ok(Attribute::KeyValue(AttributeAssignment {
                 key: AttributeKey::Named(ident),
                 value: SoloExpr::Literal(Literal::Number(
@@ -139,7 +145,7 @@ mod tests {
         let (source, _) = SourceFile::test_file(r#"a11y:alt="Alt text""#);
         let res = Attribute::parser().parse(source.stream());
         assert!(matches!(
-            res,
+            res.into_result(),
             Ok(Attribute::KeyValue(AttributeAssignment {
                 key: AttributeKey::Directive(Directive {base, director, .. }),
                 value: SoloExpr::Literal(Literal::String(s)),
