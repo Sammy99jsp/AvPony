@@ -5,7 +5,6 @@ edition = "2021"
 
 [dependencies]
 ariadne = "0.4.1"
-chumsky = "0.9.3"
 swc_common = { version = "0.33.26", features = ["plugin-mode"] }
 swc_ecma_ast = "0.113.4"
 swc_ecma_parser = "0.144.1"
@@ -13,6 +12,7 @@ syn = { version = "2.0.65", features = ["full"] }
 avpony-macros = { path = "../macros" }
 regex = "1.10.4"
 unicode-ident = "1.0.12"
+chumsky = { git = "https://github.com/Sammy99jsp/chumsky", rev = "e0f5ee7f" }
 
 [build-dependencies]
 proc-macro2 = { version = "1.0.83", features = ["nightly", "span-locations"] }

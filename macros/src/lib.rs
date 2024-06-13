@@ -1,9 +1,12 @@
 #![feature(proc_macro_diagnostic)]
 
+use errors::generate_error_enum;
 use proc_macro::{Diagnostic, Level, Span};
 use quote::ToTokens;
-use syn::parse_macro_input;
+use syn::{parse_macro_input, spanned::Spanned};
 
+mod error;
+mod errors;
 mod keyword;
 mod keywords;
 mod punctuation;
@@ -287,4 +290,94 @@ pub fn Punctuations(
     }
 
     module.into_token_stream().into()
+}
+
+///
+/// ## INTERNAL-ONLY MACRO.
+/// ***
+///
+/// ## #\[ErrorType]
+/// Auto implements all required traits for a custom `ErrorI` type (except `ErrorI` itself).
+///
+/// ### Example
+/// ```ignore
+/// use avpony_macros::{ErrorType, Errors};
+///
+/// use crate::utils::{Span, ErrorI};
+///
+/// #[ErrorType(super::Error)]
+/// pub struct UnmatchedBrackets {
+///     span: Span,
+/// }
+///
+/// impl ErrorI for UnmatchedBrackets {
+///     fn to_report(self) -> ariadne::Report<'_, Span> {
+///         // ...
+///     }
+/// }
+/// ```
+#[allow(non_snake_case)]
+#[proc_macro_attribute]
+pub fn ErrorType(
+    target: proc_macro::TokenStream,
+    item: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    let target: syn::Path = syn::parse_macro_input!(target);
+    let item: syn::Item = syn::parse_macro_input!(item);
+
+    let items_out = match item {
+        syn::Item::Struct(st) => error::impl_struct(target, st),
+        it => {
+            Diagnostic::spanned(
+                it.span().unwrap(),
+                Level::Error,
+                "Expected a struct declaration here!",
+            )
+            .emit();
+
+            return Default::default();
+        }
+    };
+
+    let mut tokens = proc_macro2::TokenStream::new();
+    items_out
+        .into_iter()
+        .for_each(|item| item.to_tokens(&mut tokens));
+
+    tokens.into()
+}
+
+///
+/// ## INTERNAL-ONLY MACRO.
+/// ***
+///
+/// ## #\[Errors]
+/// Auto implements `ErrorI`, and others for an enum of
+/// other `ErrorI` types
+///
+/// ### Example
+/// ```ignore
+/// use avpony_macros::IntoError;
+///
+/// use crate::utils::{Span, ErrorI};
+///
+/// mod unmatched_brackets;
+/// 
+/// #[Errors]
+/// pub enum Error {
+///     UnmatchedBrackets(unmatched_brackets::UnmatchedBrackets),
+/// }
+/// ```
+#[allow(non_snake_case)]
+#[proc_macro_attribute]
+pub fn Errors(
+    _: proc_macro::TokenStream,
+    inner: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    let mut tokens = proc_macro2::TokenStream::new();
+    generate_error_enum(inner)
+        .into_iter()
+        .for_each(|item| item.to_tokens(&mut tokens));
+
+    tokens.into()
 }

@@ -5,7 +5,7 @@
 use avpony_macros::Spanned;
 use chumsky::{primitive::choice, Parser};
 
-use crate::utils::{ParseableExt, PonyParser};
+use crate::utils::{ParseableCloned, PonyParser};
 
 use self::{boolean::BooleanLit, number::NumberLit, string::StringLit};
 
