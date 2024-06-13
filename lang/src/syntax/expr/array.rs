@@ -13,24 +13,27 @@ use crate::{
     utils::{PonyParser, Span},
 };
 
-use super::utils::Punctuated;
+use super::{external::External, utils::Punctuated};
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
-pub struct Array {
+pub struct Array<Ext: External> {
     span: Span,
-    pub contents: Punctuated<super::Expr, punctuation::Comma>,
+    pub contents: Punctuated<super::Expr<Ext>, punctuation::Comma>,
 }
 
-impl Array {
-    pub fn parse_with(
-        inner: impl PonyParser<super::Expr> + Clone,
-    ) -> impl PonyParser<Self> + Clone {
+impl<Ext: External> Array<Ext> {
+    pub fn parse_with<'src>(
+        inner: impl PonyParser<'src, super::Expr<Ext>> + Clone,
+    ) -> impl PonyParser<'src, Self> + Clone {
         Punctuated::optional_trailing_with(inner)
             .delimited_by(
                 just("[").then_ignore(text::whitespace()),
                 text::whitespace().ignore_then(just("]")),
             )
-            .map_with_span(|contents, span| Self { span, contents })
+            .map_with(|contents, ctx| Self {
+                span: ctx.span(),
+                contents,
+            })
     }
 }
 
@@ -40,17 +43,16 @@ mod tests {
 
     use crate::{
         lexical::{number::NumberLit, Literal},
-        syntax::{array::Array, Expr},
-        utils::{stream::SourceFile, Parseable},
+        syntax::{array::Array, VExpr as Expr},
+        utils::{Parseable, SourceFile},
     };
 
     #[test]
     fn array_parsing() {
         let (source, _) = SourceFile::test_file("[1,3,3]");
         let res = Expr::parser().parse(source.stream());
-
         assert!(matches!(
-            res,
+            res.into_result(),
             Ok(Expr::Array(Array { contents, ..})) if
                 contents.iter().count() == 3
                 && contents.iter().any(|item| matches!(item, Expr::Literal(Literal::Number(NumberLit::Integer(_)))))
@@ -62,7 +64,7 @@ mod tests {
         let res = Expr::parser().parse(source.stream());
 
         assert!(matches!(
-            res,
+            res.into_result(),
             Ok(Expr::Array(Array { contents, ..})) if
                 contents.iter().count() == 5
                 && contents.iter().any(|item| matches!(item, Expr::Literal(Literal::String(_))))
@@ -78,7 +80,7 @@ mod tests {
 
         let res = Expr::parser().parse(source.stream());
         assert!(matches!(
-            res,
+            res.into_result(),
             Ok(Expr::Array(Array { contents, ..})) if
                 contents.iter().count() == 4
                 && contents.iter().any(|item| matches!(item, Expr::Array(_)))

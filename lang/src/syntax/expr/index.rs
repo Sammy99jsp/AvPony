@@ -7,23 +7,27 @@
 //!
 
 use avpony_macros::Spanned;
-use chumsky::{primitive::just, text::TextParser, Parser};
+use chumsky::{primitive::just, Parser};
 
 use crate::utils::{PonyParser, Span};
 
+use super::external::External;
+
 #[derive(Debug, Clone, Spanned, PartialEq)]
-pub struct Indexing {
+pub struct Indexing<Ext: External> {
     span: Span,
-    pub receiver: Box<super::Expr>,
-    pub index: Box<super::Expr>,
+    pub receiver: Box<super::Expr<Ext>>,
+    pub index: Box<super::Expr<Ext>>,
 }
 
-impl Indexing {
-    pub fn parse_with(expr: impl PonyParser<super::Expr> + Clone) -> impl PonyParser<Self> + Clone {
+impl<Ext: External> Indexing<Ext> {
+    pub fn parse_with<'src>(
+        expr: impl PonyParser<'src, super::Expr<Ext>> + Clone,
+    ) -> impl PonyParser<'src, Self> + Clone {
         expr.clone()
             .then(expr.padded().delimited_by(just("["), just("]")))
-            .map_with_span(|(receiver, index), span| Self {
-                span,
+            .map_with(|(receiver, index), ctx| Self {
+                span: ctx.span(),
                 receiver: Box::new(receiver),
                 index: Box::new(index),
             })
@@ -36,8 +40,8 @@ mod tests {
 
     use crate::{
         lexical::Literal,
-        syntax::{index::Indexing, Expr},
-        utils::{stream::SourceFile, Parseable},
+        syntax::{index::Indexing, VExpr as Expr},
+        utils::{Parseable, SourceFile},
     };
 
     #[test]
@@ -45,7 +49,7 @@ mod tests {
         let (source, _) = SourceFile::test_file(r#"dict["key"]"#);
         let res = Expr::parser().parse(source.stream());
         assert!(matches!(
-            res,
+            res.into_result(),
             Ok(Expr::Indexing(Indexing {
                 receiver: box Expr::Identifier(ident),
                 index: box Expr::Literal(Literal::String(key)),
@@ -55,6 +59,6 @@ mod tests {
 
         let (source, _) = SourceFile::test_file(r#"func ["arg1", "arg2", "arg3"]"#);
         let res = Expr::parser().parse(source.stream());
-        assert!(matches!(res, Ok(Expr::Application(_))))
+        assert!(matches!(res.into_result(), Ok(Expr::Application(_))))
     }
 }

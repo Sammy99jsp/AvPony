@@ -1,13 +1,13 @@
 //!
-//! ## HTML Entity Errors
+//! HTML Entity Errors
 //!
 
-use ariadne::{Color, ColorGenerator, Fmt, Label, ReportKind};
-use avpony_macros::Spanned;
+use ariadne::{ColorGenerator, Fmt, Label, ReportKind};
+use avpony_macros::ErrorType;
 
 use crate::utils::Span;
 
-#[derive(Debug, Clone, Spanned, PartialEq)]
+#[ErrorType(crate::utils::Error)]
 pub struct InvalidEntityName {
     span: Span,
     code: String,
@@ -19,17 +19,7 @@ impl InvalidEntityName {
     }
 }
 
-impl From<InvalidEntityName> for super::Error {
-    fn from(value: InvalidEntityName) -> Self {
-        Self::InvalidEntityName(value)
-    }
-}
-
 impl super::ErrorI for InvalidEntityName {
-    fn with_label(self, _: <super::Error as chumsky::Error<char>>::Label) -> Self {
-        self
-    }
-
     fn to_report(self) -> ariadne::Report<'static, Span> {
         let mut colors = ColorGenerator::new();
         let color = colors.next();

@@ -5,13 +5,9 @@
 use std::marker::PhantomData;
 
 use avpony_macros::Spanned;
-use chumsky::{
-    primitive::just,
-    text::{self, TextParser},
-    Parser,
-};
+use chumsky::{primitive::just, text, IterParser, Parser};
 
-use crate::utils::{ParseableExt, PonyParser, Span};
+use crate::utils::{ParseableCloned, PonyParser, Span};
 
 ///
 /// A sequence of a certain token type,
@@ -24,7 +20,7 @@ pub struct Punctuated<Token, Punct> {
     __marker: PhantomData<Punct>,
 }
 
-impl<Token, Punct: ParseableExt> Punctuated<Token, Punct> {
+impl<Token, Punct: ParseableCloned> Punctuated<Token, Punct> {
     pub fn iter(&self) -> impl Iterator<Item = &Token> + '_ {
         self.inner.iter()
     }
@@ -33,43 +29,47 @@ impl<Token, Punct: ParseableExt> Punctuated<Token, Punct> {
         self.inner.iter_mut()
     }
 
-    pub fn trailing_with(inner: impl PonyParser<Token> + Clone) -> impl PonyParser<Self> + Clone {
+    pub fn trailing_with<'src>(
+        inner: impl PonyParser<'src, Token> + Clone,
+    ) -> impl PonyParser<'src, Self> + Clone {
         inner
             .padded()
             .then_ignore(just(",").padded())
             .repeated()
-            .map_with_span(|inner, span| Self {
-                span,
+            .collect::<Vec<_>>()
+            .map_with(|inner, ctx| Self {
+                span: ctx.span(),
                 inner,
                 __marker: PhantomData,
             })
     }
 
-    pub fn trailing() -> impl PonyParser<Self> + Clone
+    pub fn trailing<'src>() -> impl PonyParser<'src, Self> + Clone
     where
-        Token: ParseableExt,
+        Token: ParseableCloned,
     {
         Self::trailing_with(Token::parser())
     }
 
-    pub fn optional_trailing_with(
-        inner: impl PonyParser<Token> + Clone,
-    ) -> impl PonyParser<Self> + Clone {
+    pub fn optional_trailing_with<'src>(
+        inner: impl PonyParser<'src, Token> + Clone,
+    ) -> impl PonyParser<'src, Self> + Clone {
         inner
             .clone()
             .then_ignore(text::whitespace())
             .separated_by(just(",").padded())
             .allow_trailing()
-            .map_with_span(|inner, span| Self {
-                span,
+            .collect()
+            .map_with(|inner, ctx| Self {
+                span: ctx.span(),
                 inner,
                 __marker: PhantomData,
             })
     }
 
-    pub fn optional_trailing() -> impl PonyParser<Self> + Clone
+    pub fn optional_trailing<'src>() -> impl PonyParser<'src, Self> + Clone
     where
-        Token: ParseableExt,
+        Token: ParseableCloned,
     {
         Self::optional_trailing_with(Token::parser())
     }
@@ -102,7 +102,7 @@ mod tests {
     use crate::{
         lexical::{number::NumberLit, punctuation},
         syntax::utils::Punctuated,
-        utils::{stream::SourceFile, Parseable},
+        utils::{Parseable, SourceFile},
     };
 
     #[test]
@@ -110,7 +110,7 @@ mod tests {
         let (source, _) = SourceFile::test_file("1.1, 1.3, 2.2 ,");
         let res = Punctuated::<NumberLit, punctuation::Comma>::trailing().parse(source.stream());
         assert!(matches!(
-            res,
+            res.into_result(),
             Ok(Punctuated { inner, .. }) if inner.len() == 3
         ));
     }
@@ -121,7 +121,7 @@ mod tests {
         let res = Punctuated::<_, punctuation::Comma>::optional_trailing_with(&NumberLit::parser())
             .parse(source.stream());
         assert!(matches!(
-            res,
+            res.into_result(),
             Ok(Punctuated { inner, .. }) if inner.len() == 3
         ));
 
@@ -129,7 +129,7 @@ mod tests {
         let res = Punctuated::<_, punctuation::Comma>::optional_trailing_with(&NumberLit::parser())
             .parse(source.stream());
         assert!(matches!(
-            res,
+            res.into_result(),
             Ok(Punctuated { inner, .. }) if inner.len() == 1
         ));
 
@@ -137,7 +137,7 @@ mod tests {
         let res = Punctuated::<_, punctuation::Comma>::optional_trailing_with(&NumberLit::parser())
             .parse(source.stream());
         assert!(matches!(
-            res,
+            res.into_result(),
             Ok(Punctuated { inner, .. }) if inner.len() == 1
         ));
     }

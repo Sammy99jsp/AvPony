@@ -12,23 +12,27 @@ use chumsky::Parser;
 
 use crate::{
     lexical::{self, punctuation},
-    utils::{ParseableExt, PonyParser, Span},
+    utils::{ParseableCloned, PonyParser, Span},
 };
 
+use super::external::External;
+
 #[derive(Debug, Clone, Spanned, PartialEq)]
-pub struct MemberAccess {
+pub struct MemberAccess<Ext: External> {
     span: Span,
-    pub receiver: Box<super::Expr>,
+    pub receiver: Box<super::Expr<Ext>>,
     pub member: lexical::Identifier,
 }
 
-impl MemberAccess {
-    pub fn parse_with(expr: impl PonyParser<super::Expr> + Clone) -> impl PonyParser<Self> + Clone {
+impl<Ext: External> MemberAccess<Ext> {
+    pub fn parse_with<'src>(
+        expr: impl PonyParser<'src, super::Expr<Ext>> + Clone,
+    ) -> impl PonyParser<'src, Self> + Clone {
         expr.map(Box::new)
             .then_ignore(punctuation::Dot::parser())
             .then(lexical::Identifier::parser())
-            .map_with_span(|(receiver, member), span| Self {
-                span,
+            .map_with(|(receiver, member), ctx| Self {
+                span: ctx.span(),
                 receiver,
                 member,
             })
@@ -44,8 +48,8 @@ mod tests {
             number::{FloatLit, NumberLit},
             Literal,
         },
-        syntax::{member::MemberAccess, parenthesized::Parenthesized, Expr},
-        utils::{stream::SourceFile, Parseable},
+        syntax::{member::MemberAccess, parenthesized::Parenthesized, VExpr as Expr},
+        utils::{Parseable, SourceFile},
     };
 
     #[test]
@@ -53,7 +57,7 @@ mod tests {
         let (source, _) = SourceFile::test_file(r#"(1.).to_string"#);
         let res = Expr::parser().parse(source.stream());
         assert!(matches!(
-            res,
+            res.into_result(),
             Ok(Expr::MemberAccess(MemberAccess {
                 receiver:
                     box Expr::Parenthesised(Parenthesized {

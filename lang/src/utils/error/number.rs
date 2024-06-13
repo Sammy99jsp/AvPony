@@ -5,13 +5,13 @@
 use std::num::ParseIntError;
 
 use ariadne::{Color, ColorGenerator, Fmt, Label};
-use avpony_macros::Spanned;
+use avpony_macros::ErrorType;
 
 use crate::{lexical::number, utils::Span};
 
 use super::ErrorI;
 
-#[derive(Debug, Clone, Spanned, PartialEq)]
+#[ErrorType(crate::utils::Error)]
 pub struct InvalidInt {
     span: Span,
     internal: ParseIntError,
@@ -28,18 +28,7 @@ impl InvalidInt {
     }
 }
 
-impl From<InvalidInt> for super::Error {
-    fn from(value: InvalidInt) -> Self {
-        Self::InvalidInt(value)
-    }
-}
-
 impl ErrorI for InvalidInt {
-    fn with_label(mut self, label: String) -> Self {
-        self.extra.replace(label);
-        self
-    }
-
     fn to_report(self) -> ariadne::Report<'static, Span> {
         let (code, message) = match self.internal.kind() {
             std::num::IntErrorKind::PosOverflow => {
@@ -87,7 +76,7 @@ impl ErrorI for InvalidInt {
     }
 }
 
-#[derive(Debug, Clone, Spanned, PartialEq)]
+#[ErrorType(crate::utils::Error)]
 pub struct MultipleNumericDividers {
     span: Span,
     extra: Option<String>,
@@ -99,18 +88,7 @@ impl MultipleNumericDividers {
     }
 }
 
-impl From<MultipleNumericDividers> for super::Error {
-    fn from(value: MultipleNumericDividers) -> Self {
-        Self::MultipleNumericDividers(value)
-    }
-}
-
 impl ErrorI for MultipleNumericDividers {
-    fn with_label(mut self, label: <super::Error as chumsky::Error<char>>::Label) -> Self {
-        self.extra.replace(label);
-        self
-    }
-
     fn to_report(self) -> ariadne::Report<'static, crate::utils::Span> {
         let mut colors = ColorGenerator::new();
         self.span
@@ -128,7 +106,7 @@ impl ErrorI for MultipleNumericDividers {
     }
 }
 
-#[derive(Debug, Clone, Spanned, PartialEq)]
+#[ErrorType(crate::utils::Error)]
 pub struct DivdersBadlyPlaced {
     span: Span,
     extra: Option<String>,
@@ -140,18 +118,7 @@ impl DivdersBadlyPlaced {
     }
 }
 
-impl From<DivdersBadlyPlaced> for super::Error {
-    fn from(value: DivdersBadlyPlaced) -> Self {
-        Self::DivdersBadlyPlaced(value)
-    }
-}
-
 impl ErrorI for DivdersBadlyPlaced {
-    fn with_label(mut self, label: <super::Error as chumsky::Error<char>>::Label) -> Self {
-        self.extra.replace(label);
-        self
-    }
-
     fn to_report(self) -> ariadne::Report<'static, crate::utils::Span> {
         let mut colors = ColorGenerator::new();
         self.span

@@ -16,20 +16,65 @@ pub fn is_span_type(ty: &syn::Type) -> bool {
     false
 }
 
-pub fn path_to_span() -> syn::Path {
-    syn::Path {
-        leading_colon: None,
-        segments: Punctuated::from_iter(
-            ["crate", "utils", "Span"]
-                .into_iter()
-                .map(|seg| syn::Ident::new(seg, proc_macro2::Span::call_site()))
-                .map(syn::PathSegment::from),
-        ),
+#[allow(non_snake_case)]
+pub mod Span {
+    use crate::q;
+
+    pub fn path() -> syn::Path {
+        q!(crate::utils::Span)
+    }
+}
+
+pub fn genericize_path(path: &syn::Path, generics: &syn::Generics) -> syn::Path {
+    if let syn::Generics {
+        lt_token: Some(_),
+        params,
+        gt_token: Some(_),
+        ..
+    } = generics
+    {
+        let args =
+            syn::punctuated::Punctuated::from_iter(params.iter().cloned().map(
+                |param| match param {
+                    syn::GenericParam::Lifetime(syn::LifetimeParam { lifetime, .. }) => {
+                        syn::GenericArgument::Lifetime(lifetime)
+                    }
+                    syn::GenericParam::Type(syn::TypeParam { ident, .. }) => {
+                        syn::GenericArgument::Type(syn::Type::Path(syn::TypePath {
+                            qself: None,
+                            path: ident.into(),
+                        }))
+                    }
+                    syn::GenericParam::Const(syn::ConstParam { ident, .. }) => {
+                        syn::GenericArgument::Const(syn::Expr::Path(syn::ExprPath {
+                            attrs: Default::default(),
+                            qself: None,
+                            path: ident.into(),
+                        }))
+                    }
+                },
+            ));
+
+        let mut path = path.clone();
+        let seg = path.segments.last_mut().unwrap();
+        let arguments = &mut seg.arguments;
+        *arguments = syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments {
+            colon2_token: None,
+            lt_token: Default::default(),
+            args,
+            gt_token: Default::default(),
+        });
+
+        path
+    } else {
+        path.clone()
     }
 }
 
 #[allow(clippy::module_inception)] // I'd like this to follow the real path's structure itself.
 mod spanned {
+    use super::genericize_path;
+
     pub fn path() -> syn::Path {
         syn::Path {
             leading_colon: None,
@@ -43,6 +88,8 @@ mod spanned {
     }
 
     pub mod span {
+        use crate::spanned::Span;
+
         pub fn path() -> syn::Path {
             syn::Path {
                 leading_colon: None,
@@ -102,7 +149,7 @@ mod spanned {
                     Default::default(),
                     Box::new(syn::Type::Path(syn::TypePath {
                         qself: None,
-                        path: super::super::path_to_span(),
+                        path: Span::path(),
                     })),
                 ),
             }
@@ -125,54 +172,6 @@ mod spanned {
             },
         });
 
-        let path = if let syn::Generics {
-            lt_token: Some(_),
-            params,
-            gt_token: Some(_),
-            ..
-        } = generics
-        {
-            let args =
-                syn::punctuated::Punctuated::from_iter(params.iter().cloned().map(|param| {
-                    match param {
-                        syn::GenericParam::Lifetime(syn::LifetimeParam { lifetime, .. }) => {
-                            syn::GenericArgument::Lifetime(lifetime)
-                        }
-                        syn::GenericParam::Type(syn::TypeParam { ident, .. }) => {
-                            syn::GenericArgument::Type(syn::Type::Path(syn::TypePath {
-                                qself: None,
-                                path: ident.into(),
-                            }))
-                        }
-                        syn::GenericParam::Const(syn::ConstParam { ident, .. }) => {
-                            syn::GenericArgument::Const(syn::Expr::Path(syn::ExprPath {
-                                attrs: Default::default(),
-                                qself: None,
-                                path: ident.into(),
-                            }))
-                        }
-                    }
-                }));
-            syn::Path {
-                leading_colon: None,
-                segments: syn::punctuated::Punctuated::from_iter(std::iter::once(
-                    syn::PathSegment {
-                        ident: ident.clone(),
-                        arguments: syn::PathArguments::AngleBracketed(
-                            syn::AngleBracketedGenericArguments {
-                                colon2_token: None,
-                                lt_token: Default::default(),
-                                args,
-                                gt_token: Default::default(),
-                            },
-                        ),
-                    },
-                )),
-            }
-        } else {
-            syn::Path::from(ident.clone())
-        };
-
         syn::ItemImpl {
             attrs: Default::default(),
             defaultness: None,
@@ -180,7 +179,10 @@ mod spanned {
             impl_token: Default::default(),
             generics: generics.clone(),
             trait_: Some((None, self::path(), Default::default())),
-            self_ty: Box::new(syn::Type::Path(syn::TypePath { qself: None, path })),
+            self_ty: Box::new(syn::Type::Path(syn::TypePath {
+                qself: None,
+                path: genericize_path(&ident.clone().into(), generics),
+            })),
             brace_token: Default::default(),
             items: vec![method],
         }

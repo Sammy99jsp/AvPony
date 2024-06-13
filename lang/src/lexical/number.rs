@@ -28,17 +28,17 @@ use std::sync::OnceLock;
 
 use avpony_macros::Spanned;
 use chumsky::{
-    primitive::{filter, just},
-    Parser,
+    primitive::{any, just},
+    IterParser, Parser,
 };
 use regex::Regex;
 
 use crate::utils::{
-    errors::{
+    error::{
         number::{DivdersBadlyPlaced, InvalidInt, MultipleNumericDividers},
         Error,
     },
-    ParseableExt, Span,
+    ParseableCloned, Span,
 };
 
 pub type IntType = i32;
@@ -53,19 +53,25 @@ pub enum NumberLit {
 static MULTIPLE_NUMERIC_DIVIDERS: OnceLock<Regex> = OnceLock::new();
 static BADLY_PLACED_NUMERIC_DIVIDERS: OnceLock<Regex> = OnceLock::new();
 
-impl ParseableExt for NumberLit {
-    fn parser() -> impl crate::utils::PonyParser<Self> + Clone {
+impl ParseableCloned for NumberLit {
+    fn parser<'src>() -> impl crate::utils::PonyParser<'src, Self> + Clone {
         let divider_train = MULTIPLE_NUMERIC_DIVIDERS.get_or_init(|| Regex::new(r"_(_+)").unwrap());
         let dividers_badly_placed = BADLY_PLACED_NUMERIC_DIVIDERS
             .get_or_init(|| Regex::new(r"(^_)|(-_)|(_\.)|(\._)|(_$)").unwrap());
 
-        let digits = filter(|ch: &char| ch.is_ascii_digit() || ch == &'_').repeated();
+        let digits = any().filter(|ch: &char| ch.is_ascii_digit() || ch == &'_');
 
         just("-")
             .map(|_| '-')
             .or_not()
-            .then(digits.at_least(1))
-            .then(just(".").map(|_| '.').chain(digits).or_not())
+            .then(digits.repeated().at_least(1).collect::<Vec<_>>())
+            .then(
+                just(".")
+                    .map(|_| '.')
+                    .then(digits.repeated().collect::<Vec<_>>())
+                    .map(|(dot, digits)| std::iter::once(dot).chain(digits).collect::<Vec<_>>())
+                    .or_not(),
+            )
             .try_map(|((minus, int), mantissa), span: Span| {
                 let is_float = mantissa.is_some();
 
@@ -141,56 +147,56 @@ mod tests {
     use super::NumberLit;
     use crate::{
         lexical::number::{FloatLit, IntegerLit},
-        utils::{stream::SourceFile, Parseable},
+        utils::{Parseable, SourceFile},
     };
 
     #[test]
     fn parsing() {
         let (source, _) = SourceFile::test_file("122");
         assert!(matches!(
-            NumberLit::parser().parse(source.stream()),
+            NumberLit::parser().parse(source.stream()).into_result(),
             Ok(NumberLit::Integer(IntegerLit { value: 122, .. }))
         ));
 
         let (source, _) = SourceFile::test_file("-122");
         assert!(matches!(
-            NumberLit::parser().parse(source.stream()),
+            NumberLit::parser().parse(source.stream()).into_result(),
             Ok(NumberLit::Integer(IntegerLit { value: -122, .. }))
         ));
 
         let (source, _) = SourceFile::test_file("1.22");
         assert!(matches!(
-            NumberLit::parser().parse(source.stream()),
+            NumberLit::parser().parse(source.stream()).into_result(),
             Ok(NumberLit::Float(FloatLit { value: 1.22, .. }))
         ));
 
         let (source, _) = SourceFile::test_file("-1.22");
         assert!(matches!(
-            NumberLit::parser().parse(source.stream()),
+            NumberLit::parser().parse(source.stream()).into_result(),
             Ok(NumberLit::Float(FloatLit { value: -1.22, .. }))
         ));
 
         let (source, _) = SourceFile::test_file("1_22");
         assert!(matches!(
-            NumberLit::parser().parse(source.stream()),
+            NumberLit::parser().parse(source.stream()).into_result(),
             Ok(NumberLit::Integer(IntegerLit { value: 122, .. }))
         ));
 
         let (source, _) = SourceFile::test_file("-1_22");
         assert!(matches!(
-            NumberLit::parser().parse(source.stream()),
+            NumberLit::parser().parse(source.stream()).into_result(),
             Ok(NumberLit::Integer(IntegerLit { value: -122, .. }))
         ));
 
         let (source, _) = SourceFile::test_file("1.2_2");
         assert!(matches!(
-            NumberLit::parser().parse(source.stream()),
+            NumberLit::parser().parse(source.stream()).into_result(),
             Ok(NumberLit::Float(FloatLit { value: 1.22, .. }))
         ));
 
         let (source, _) = SourceFile::test_file("-1.2_2");
         assert!(matches!(
-            NumberLit::parser().parse(source.stream()),
+            NumberLit::parser().parse(source.stream()).into_result(),
             Ok(NumberLit::Float(FloatLit { value: -1.22, .. }))
         ));
     }
@@ -198,18 +204,18 @@ mod tests {
     #[test]
     fn invalid_parsing() {
         let (source, _) = SourceFile::test_file("_122");
-        assert!(NumberLit::parser().parse(source.stream()).is_err());
+        assert!(NumberLit::parser().parse(source.stream()).has_errors());
 
         let (source, _) = SourceFile::test_file("-_122");
-        assert!(NumberLit::parser().parse(source.stream()).is_err());
+        assert!(NumberLit::parser().parse(source.stream()).has_errors());
 
         let (source, _) = SourceFile::test_file("1_.22");
-        assert!(NumberLit::parser().parse(source.stream()).is_err());
+        assert!(NumberLit::parser().parse(source.stream()).has_errors());
 
         let (source, _) = SourceFile::test_file("-1._22");
-        assert!(NumberLit::parser().parse(source.stream()).is_err());
+        assert!(NumberLit::parser().parse(source.stream()).has_errors());
 
         let (source, _) = SourceFile::test_file("122_");
-        assert!(NumberLit::parser().parse(source.stream()).is_err());
+        assert!(NumberLit::parser().parse(source.stream()).has_errors());
     }
 }

@@ -7,7 +7,7 @@
 use avpony_macros::Spanned;
 use chumsky::{primitive::choice, Parser};
 
-use crate::utils::ParseableExt;
+use crate::utils::ParseableCloned;
 
 use super::keyword;
 
@@ -17,8 +17,8 @@ pub enum BooleanLit {
     True(keyword::True),
 }
 
-impl ParseableExt for BooleanLit {
-    fn parser() -> impl crate::utils::PonyParser<Self> + Clone {
+impl ParseableCloned for BooleanLit {
+    fn parser<'src>() -> impl crate::utils::PonyParser<'src, Self> + Clone {
         choice((
             keyword::False::parser().map(Self::False),
             keyword::True::parser().map(Self::True),
@@ -32,24 +32,24 @@ mod tests {
 
     use crate::{
         lexical::boolean::BooleanLit,
-        utils::{stream::SourceFile, Parseable},
+        utils::{Parseable, SourceFile},
     };
 
     #[test]
     fn parse_bool() {
         let (source, _) = SourceFile::test_file("true");
         assert!(matches!(
-            BooleanLit::parser().parse(source.stream()),
+            BooleanLit::parser().parse(source.stream()).into_result(),
             Ok(BooleanLit::True(_))
         ));
 
         let (source, _) = SourceFile::test_file("false");
         assert!(matches!(
-            BooleanLit::parser().parse(source.stream()),
+            BooleanLit::parser().parse(source.stream()).into_result(),
             Ok(BooleanLit::False(_))
         ));
 
         let (source, _) = SourceFile::test_file("fafsdbhjjlse");
-        assert!(BooleanLit::parser().parse(source.stream()).is_err());
+        assert!(BooleanLit::parser().parse(source.stream()).has_errors());
     }
 }
