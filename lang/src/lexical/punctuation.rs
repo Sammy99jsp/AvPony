@@ -3,14 +3,14 @@
 //! We define punctuation as ASCII non-(letter or digit) characters, that are split into:
 //! * syntax punctuation (one of `,:;`), which are reserved for syntax
 //! * operator punctuation (one of `!$%^&*?/#~|@`), see [crate::syntax::operator].
-//! 
+//!
 //! ### Grammar
 //! ```text
-//! syntax_punct :=  `,` | `:` | `;` 
+//! syntax_punct :=  `,` | `:` | `;`
 //! operator_punct := `!` | `$` | `%` | `^` | `&` | `*` | `?`| `/` | `#` | `~` | `|` | `@` | `<` | `>`
 //! punct := synatx_punct | operator_punct
 //! ```
-//! 
+//!
 
 use avpony_macros::Punctuations;
 
@@ -18,16 +18,16 @@ use avpony_macros::Punctuations;
 mod syntax {
     use avpony_macros::Punctuation;
     use chumsky::Parser;
-    
+
     #[Punctuation(',' @ Syntax)]
     pub struct Comma;
-    
+
     #[Punctuation(':' @ Syntax)]
     pub struct Colon;
-    
+
     #[Punctuation(';' @ Syntax)]
     pub struct Semicolon;
-    
+
     #[Punctuation('.' @ Syntax)]
     pub struct Dot;
 
@@ -71,7 +71,7 @@ mod operator {
 
     #[Punctuation('~' @ Operator)]
     pub struct Tilde;
-    
+
     #[Punctuation('|' @ Operator)]
     pub struct Pipe;
 

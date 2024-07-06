@@ -23,7 +23,11 @@ use chumsky::{
     IterParser, Parser,
 };
 
-use crate::utils::{error::identifier::ReservedIdentifier, ParseableCloned, PonyParser, Span};
+use crate::utils::{
+    error::identifier::ReservedIdentifier,
+    placeholder::{HasPlaceholder, Marker},
+    ParseableCloned, PonyParser, Span,
+};
 
 use super::keyword;
 
@@ -39,7 +43,8 @@ pub struct UncheckedIdentifier {
 impl ParseableCloned for UncheckedIdentifier {
     fn parser<'src>() -> impl PonyParser<'src, Self> + Clone {
         let xid_start = any().filter(|ch: &char| unicode_ident::is_xid_start(*ch));
-        let xid_continue = any().filter(|ch: &char| unicode_ident::is_xid_continue(*ch));
+        let xid_continue =
+            any().filter(|ch: &char| unicode_ident::is_xid_continue(*ch) || *ch == '_');
 
         choice((
             xid_start
@@ -85,6 +90,22 @@ impl PartialEq<str> for Identifier {
 impl Identifier {
     pub fn same_name_as(&self, other: &Self) -> bool {
         self.value == other.value
+    }
+}
+
+impl HasPlaceholder for Identifier {
+    type Marker = IndentifierMarker;
+}
+
+pub struct IndentifierMarker;
+
+impl Marker for IndentifierMarker {
+    const ID: u8 = 0;
+
+    const NAME: &'static str = "IDENTIFIER";
+
+    fn new() -> Self {
+        Self
     }
 }
 

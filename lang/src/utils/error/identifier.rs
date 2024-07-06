@@ -1,6 +1,6 @@
 //!
 //! Identifier Errors
-//! 
+//!
 
 use ariadne::{ColorGenerator, Fmt, Label};
 use avpony_macros::ErrorType;

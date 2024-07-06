@@ -2,7 +2,7 @@
 //!
 //! # AvPony
 //! > What is AvPony?
-//! 
+//!
 //! AvPony is a new UI language that will be used for AvdanOS components.
 //!
 //! It's an abstraction over Skia, or another graphical backend, with a
@@ -21,7 +21,7 @@
 //! your Rustup toolchain: `rustup install +nighlty`
 //!
 
-pub mod syntax;
-pub mod utils;
 pub mod lexical;
 pub mod ponyx;
+pub mod syntax;
+pub mod utils;

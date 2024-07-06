@@ -31,7 +31,10 @@ use chumsky::{primitive::just, Parser};
 use crate::{
     lexical,
     syntax::{external::External, SoloExpr},
-    utils::{ParseableCloned, PonyParser, Span},
+    utils::{
+        placeholder::{Maybe, MaybeParser},
+        ParseableCloned, PonyParser, Span,
+    },
 };
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
@@ -43,7 +46,7 @@ pub enum Attribute<Ext: External> {
 impl<Ext: External + 'static> ParseableCloned for Attribute<Ext> {
     fn parser<'src>() -> impl PonyParser<'src, Self> + Clone {
         AttributeKey::parser()
-            .then(just("=").ignore_then(SoloExpr::parser()).or_not())
+            .then(just("=").ignore_then(SoloExpr::parser().maybe()).or_not())
             .map_with(|(key, value), ctx| match value {
                 None => Self::Key(key),
                 Some(value) => Self::KeyValue(AttributeAssignment {
@@ -66,16 +69,16 @@ impl ParseableCloned for AttributeKey {
         lexical::Identifier::parser()
             .then(
                 just(":")
-                    .ignore_then(lexical::Identifier::parser())
+                    .ignore_then(lexical::Identifier::parser().maybe())
                     .or_not(),
             )
             .map_with(|(base, director), ctx| match director {
-                None => Self::Named(base),
                 Some(director) => Self::Directive(Directive {
                     span: ctx.span(),
                     base,
                     director,
                 }),
+                None => Self::Named(base),
             })
     }
 }
@@ -86,14 +89,14 @@ pub type NamedAttribute = lexical::Identifier;
 pub struct Directive {
     span: Span,
     pub base: lexical::Identifier,
-    pub director: lexical::Identifier,
+    pub director: Maybe<lexical::Identifier>,
 }
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct AttributeAssignment<Ext: External> {
     span: Span,
     pub key: AttributeKey,
-    pub value: SoloExpr<Ext>,
+    pub value: Maybe<SoloExpr<Ext>>,
 }
 
 #[cfg(test)]
@@ -107,7 +110,7 @@ mod tests {
         },
         ponyx::tag::attribute::{Attribute as Attr, AttributeAssignment, AttributeKey, Directive},
         syntax::{external::TestLang, SoloExpr},
-        utils::{Parseable, SourceFile},
+        utils::{placeholder::Maybe, Parseable, SourceFile},
     };
 
     type Attribute = Attr<TestLang>;
@@ -122,9 +125,10 @@ mod tests {
         ));
 
         let (source, _) = SourceFile::test_file("on:click");
+        let res = Attribute::parser().parse(source.stream());
         assert!(matches!(
-            Attribute::parser().parse(source.stream()).into_result(),
-            Ok(Attribute::Key(AttributeKey::Directive(Directive { base, director, ..})))
+            res.into_result(),
+            Ok(Attribute::Key(AttributeKey::Directive(Directive { base, director: Maybe::Present(director), ..})))
                 if base == *"on" && director == *"click"
         ));
 
@@ -134,9 +138,9 @@ mod tests {
             res.into_result(),
             Ok(Attribute::KeyValue(AttributeAssignment {
                 key: AttributeKey::Named(ident),
-                value: SoloExpr::Literal(Literal::Number(
+                value: Maybe::Present(SoloExpr::Literal(Literal::Number(
                     NumberLit::Integer(IntegerLit { value, ..})
-                )),
+                ))),
                 ..
             }))
                 if ident == *"value" && value == 2
@@ -147,8 +151,8 @@ mod tests {
         assert!(matches!(
             res.into_result(),
             Ok(Attribute::KeyValue(AttributeAssignment {
-                key: AttributeKey::Directive(Directive {base, director, .. }),
-                value: SoloExpr::Literal(Literal::String(s)),
+                key: AttributeKey::Directive(Directive {base, director: Maybe::Present(director), .. }),
+                value: Maybe::Present(SoloExpr::Literal(Literal::String(s))),
                 ..
             }))
                 if base == *"a11y"
