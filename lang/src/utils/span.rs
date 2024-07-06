@@ -23,6 +23,27 @@ pub struct Span {
     range: Range<usize>,
 }
 
+impl Span {
+    pub fn combine(self, other: Self) -> Option<Self> {
+        match (self, other) {
+            (
+                Span {
+                    path: p1,
+                    range: left,
+                },
+                Span {
+                    path: p2,
+                    range: right,
+                },
+            ) if p1 == p2 => Some(Self {
+                path: p1,
+                range: left.start.min(right.start)..right.end.max(left.end),
+            }),
+            _ => None,
+        }
+    }
+}
+
 impl chumsky::span::Span for Span {
     type Context = Arc<str>;
 

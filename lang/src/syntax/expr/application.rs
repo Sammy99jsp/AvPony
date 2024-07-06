@@ -10,34 +10,45 @@
 //!
 
 use avpony_macros::Spanned;
-use chumsky::{primitive::just, text, Parser};
+use chumsky::{primitive::choice, recursive::recursive, Parser};
 
 use crate::{
     syntax::external::External,
     utils::{PonyParser, Span},
 };
 
+use super::Expr;
+
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct Application<Ext: External> {
-    span: Span,
+    pub span: Span,
     pub function: Box<super::Expr<Ext>>,
     pub argument: Box<super::Expr<Ext>>,
 }
 
 impl<Ext: External> Application<Ext> {
-    pub fn parse_with<'src>(
-        expr: impl PonyParser<'src, super::Expr<Ext>> + Clone,
-    ) -> impl PonyParser<'src, Self> + Clone {
-        expr.clone()
-            .map(Box::new)
-            .then_ignore(just("[").not().rewind())
-            .padded_by(text::whitespace())
-            .then(expr.map(Box::new))
-            .map_with(|(function, argument), ctx| Self {
-                span: ctx.span(),
-                function,
-                argument,
-            })
+    pub fn with<'src>(
+        singleton: impl PonyParser<'src, super::Expr<Ext>> + Clone + 'src,
+    ) -> impl PonyParser<'src, Box<Expr<Ext>>> + Clone
+    where
+        Ext: 'static,
+    {
+        recursive(|app| {
+            choice((
+                singleton
+                    .clone()
+                    .padded()
+                    .then(app)
+                    .map_with(|(function, argument), ctx| {
+                        Box::new(Expr::Application(Application {
+                            span: ctx.span(),
+                            function: Box::new(function),
+                            argument,
+                        }))
+                    }),
+                singleton.clone().map(Box::new),
+            ))
+        })
     }
 }
 

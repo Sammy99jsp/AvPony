@@ -9,15 +9,42 @@
 use avpony_macros::Spanned;
 use chumsky::{text, Parser};
 
-use crate::utils::{ParseableCloned, PonyParser, Span};
+use crate::utils::{
+    placeholder::{Maybe, MaybeParser},
+    ParseableCloned, PonyParser, Span,
+};
 
-use super::{external::External, operator::BinaryOperator};
+use super::{
+    external::External,
+    operator::{BinaryOperator, UnaryOperator},
+};
+
+#[derive(Debug, Clone, Spanned, PartialEq)]
+pub struct UnarayOperation<Ext: External> {
+    pub span: Span,
+    pub operator: UnaryOperator,
+    pub operand: Box<super::Expr<Ext>>,
+}
+
+impl<Ext: External> UnarayOperation<Ext> {
+    pub fn parse_with<'src>(
+        expr: impl PonyParser<'src, super::Expr<Ext>> + Clone,
+    ) -> impl PonyParser<'src, Self> + Clone {
+        UnaryOperator::parser()
+            .then(expr.map(Box::new))
+            .map_with(|(operator, operand), ctx| Self {
+                span: ctx.span(),
+                operator,
+                operand,
+            })
+    }
+}
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct BinaryOperation<Ext: External> {
-    span: Span,
+    pub span: Span,
     pub operator: BinaryOperator,
-    pub operands: [Box<super::Expr<Ext>>; 2],
+    pub operands: (Box<super::Expr<Ext>>, Box<Maybe<super::Expr<Ext>>>),
 }
 
 impl<Ext: External> BinaryOperation<Ext> {
@@ -28,11 +55,11 @@ impl<Ext: External> BinaryOperation<Ext> {
             .padded_by(text::whitespace())
             .map(Box::new)
             .then(BinaryOperator::parser())
-            .then(expr.padded_by(text::whitespace()).map(Box::new))
+            .then(expr.maybe().padded_by(text::whitespace()).map(Box::new))
             .map_with(|((first, operator), second), ctx| Self {
                 span: ctx.span(),
                 operator,
-                operands: [first, second],
+                operands: (first, second),
             })
     }
 }
@@ -47,7 +74,7 @@ mod tests {
             Literal,
         },
         syntax::{operation::BinaryOperation, VExpr as Expr},
-        utils::{Parseable, SourceFile},
+        utils::{placeholder::Maybe, Parseable, SourceFile},
     };
 
     #[test]
@@ -59,11 +86,11 @@ mod tests {
             Ok(Expr::BinaryOp(BinaryOperation {
                 operator,
                 operands:
-                    [box Expr::Literal(Literal::Number(NumberLit::Integer(IntegerLit {
+                    (box Expr::Literal(Literal::Number(NumberLit::Integer(IntegerLit {
                         value: 2, ..
-                    }))), box Expr::Literal(Literal::Number(NumberLit::Integer(IntegerLit {
+                    }))), box Maybe::Present(Expr::Literal(Literal::Number(NumberLit::Integer(IntegerLit {
                         value: 4, ..
-                    })))],
+                    }))))),
                 ..
             })) if operator == "->"
         ))
@@ -78,11 +105,11 @@ mod tests {
             Ok(Expr::BinaryOp(BinaryOperation {
                 operator,
                 operands:
-                    [box Expr::Literal(Literal::Number(NumberLit::Integer(IntegerLit {
+                    (box Expr::Literal(Literal::Number(NumberLit::Integer(IntegerLit {
                         value: 2, ..
-                    }))), box Expr::Literal(Literal::Number(NumberLit::Integer(IntegerLit {
+                    }))), box Maybe::Present(Expr::Literal(Literal::Number(NumberLit::Integer(IntegerLit {
                         value: 4, ..
-                    })))],
+                    }))))),
                 ..
             })) if operator == "to"
         ))

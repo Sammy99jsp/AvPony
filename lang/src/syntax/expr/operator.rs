@@ -12,8 +12,10 @@ use chumsky::{
 
 use crate::{
     lexical::{punctuation, Identifier},
-    utils::{ParseableCloned, PonyParser, Span},
+    utils::{placeholder::MaybeParser, ParseableCloned, PonyParser, Span},
 };
+
+use super::{external::External, operation::BinaryOperation};
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub enum UnaryOperator {
@@ -49,6 +51,27 @@ impl ParseableCloned for Symbolic {
 pub enum BinaryOperator {
     Symbols(Symbolic),
     Named(NamedBinary),
+}
+
+impl<Ext: External> BinaryOperation<Ext> {
+    pub fn with<'src>(
+        application: impl PonyParser<'src, Box<super::Expr<Ext>>> + Clone,
+        expr: impl PonyParser<'src, super::Expr<Ext>> + Clone,
+    ) -> impl PonyParser<'src, super::Expr<Ext>> + Clone {
+        choice((
+            application
+                .clone()
+                .then(BinaryOperator::parser().padded().then(expr.maybe()))
+                .map_with(|(left, (operator, right)), ctx| {
+                    super::Expr::BinaryOp(BinaryOperation {
+                        span: ctx.span(),
+                        operator,
+                        operands: (left, Box::new(right)),
+                    })
+                }),
+            application.map(|a| *a),
+        ))
+    }
 }
 
 impl ParseableCloned for BinaryOperator {
@@ -91,23 +114,20 @@ mod tests {
     use chumsky::Parser;
 
     use crate::{
-        syntax::{
-            operator::{Symbolic, UnaryOperator},
-            VExpr as Expr,
-        },
+        syntax::operator::{Symbolic, UnaryOperator},
         utils::{Parseable, SourceFile},
     };
 
     #[test]
     fn symbols() {
         let (source, _) = SourceFile::test_file(r#"->"#);
-        let res = Expr::parser().parse(source.stream());
+        let res = UnaryOperator::parser().parse(source.stream());
         assert!(matches!(
             res.into_result(),
-            Ok(Expr::Operator(UnaryOperator::Symbols(Symbolic {
+            Ok(UnaryOperator::Symbols(Symbolic {
                 value,
                 ..
-            })))
+            }))
                 if value == "->"
         ))
     }

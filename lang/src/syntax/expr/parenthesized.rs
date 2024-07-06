@@ -12,7 +12,7 @@
 //!
 
 use avpony_macros::Spanned;
-use chumsky::{primitive::just, text, Parser};
+use chumsky::{primitive::just, Parser};
 
 use crate::utils::{PonyParser, Span};
 
@@ -28,7 +28,7 @@ impl<Ext: External> Parenthesized<Ext> {
     pub fn parse_with<'src>(
         expr: impl PonyParser<'src, super::Expr<Ext>> + Clone,
     ) -> impl PonyParser<'src, Self> + Clone {
-        expr.padded_by(text::whitespace())
+        expr.padded()
             .delimited_by(just("("), just(")"))
             .map_with(|inner, ctx| Self {
                 span: ctx.span(),
@@ -82,5 +82,17 @@ mod tests {
                 ..
             }))
         ));
+        let (source, _) = SourceFile::test_file(r#"(a[])"#);
+        let res = Expr::parser().parse(source.stream());
+        assert!(
+            res.has_errors()
+                && matches!(
+                    res.output(),
+                    Some(Expr::Parenthesised(super::Parenthesized {
+                        inner: box Expr::Indexing(_),
+                        ..
+                    }))
+                )
+        );
     }
 }

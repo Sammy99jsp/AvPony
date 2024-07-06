@@ -43,12 +43,14 @@ impl<Ext: External + 'static> Tag<Ext> {
         just("<")
             .ignore_then(TagName::parser())
             .then(
-                text::whitespace()
-                    .at_least(1)
-                    .ignore_then(Attribute::parser())
-                    .repeated()
-                    .collect(),
+                text::whitespace().ignore_then(
+                    Attribute::parser()
+                        .separated_by(text::whitespace().at_least(1))
+                        .collect(),
+                ),
             )
+            // BUG: <A key=/> should be recoverable, but isn't:
+            //      tries to parse `/` as an expression.
             .then_ignore(text::whitespace())
             .then(choice((
                 just("/>").ignored().map(|_| None),
@@ -101,7 +103,7 @@ mod tests {
     use chumsky::Parser;
 
     use crate::{
-        lexical::Literal,
+        lexical::{number::NumberLit, Literal},
         ponyx::{
             tag::{
                 attribute::{Attribute, AttributeAssignment, AttributeKey, Directive},
@@ -110,8 +112,8 @@ mod tests {
             text::Text,
             TNode as Node,
         },
-        syntax::SoloExpr,
-        utils::{ErrorI, Parseable, SourceFile},
+        syntax::{application::Application, parenthesized::Parenthesized, Expr, SoloExpr},
+        utils::{placeholder::Maybe, Parseable, SourceFile},
     };
 
     #[test]
@@ -129,8 +131,8 @@ mod tests {
                 && matches!(attributes.as_slice(),
                     [
                         Attribute::KeyValue(AttributeAssignment {
-                            key: AttributeKey::Directive(Directive { base, director, ..}),
-                            value: SoloExpr::Literal(Literal::String(value)),
+                            key: AttributeKey::Directive(Directive { base, director: Maybe::Present(director), ..}),
+                            value: Maybe::Present(SoloExpr::Literal(Literal::String(value))),
                             ..
                         }),
                         Attribute::Key(AttributeKey::Named(key2))
@@ -140,17 +142,19 @@ mod tests {
                         && value == "Picture of a rat."
                 )
         ));
-        let (source, cache) = SourceFile::test_file("<Box>\n  Hey there!\n</Box>");
+        let (source, _) = SourceFile::test_file(
+            r#"<Box border=(5pt) >
+            Hey there!
+        </Box>"#,
+        );
         let res = Node::parser().parse(source.stream());
-        res.errors()
-            .try_for_each(|e| e.clone().to_report().eprint(cache.clone()))
-            .unwrap();
 
         assert!(matches!(
             res.into_result(),
             Ok(Node::Tag(Tag::Enclosing(EnclosingTag {
                 name,
                 children,
+                attributes,
                 ..
             })))
                 if name == *"Box"
@@ -158,6 +162,22 @@ mod tests {
                     children.as_slice(),
                     [Node::Text(Text { text, ..})]
                         if text.trim() == "Hey there!"
+                )
+                && matches!(
+                    attributes.as_slice(),
+                    [Attribute::KeyValue(AttributeAssignment {
+                        key: AttributeKey::Named(attr),
+                        value: Maybe::Present(SoloExpr::Parenthesised(Parenthesized {
+                            inner: box Expr::Application(Application {
+                                function: box Expr::Literal(Literal::Number(NumberLit::Integer(int))),
+                                argument: box Expr::Identifier(unit),
+                                ..
+                            }),
+                            ..
+                        })),
+                        ..
+                    })]
+                        if attr == "border" && int.value == 5 && unit == "pt"
                 )
         ))
     }

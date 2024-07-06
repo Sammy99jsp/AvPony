@@ -1,4 +1,4 @@
-//! 
+//!
 //! ## Pony Expressions
 //!
 //! Pony supports the following as expressions:
@@ -36,96 +36,128 @@ pub use super::external;
 use super::external::{External, ExternalExpr};
 use avpony_macros::Spanned;
 use chumsky::{primitive::choice, recursive::recursive, Parser};
+use utils::Accessor;
 
 use crate::{
     lexical,
-    utils::{error::tag::SoloExprOnly, Error, ParseableCloned, PonyParser},
+    utils::{
+        error::tag::SoloExprOnly,
+        placeholder::{HasPlaceholder, Marker},
+        Error, ParseableCloned, PonyParser,
+    },
 };
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub enum Expr<Ext: External> {
     Literal(lexical::Literal),
     Identifier(lexical::Identifier),
-    Operator(operator::UnaryOperator),
+    UnaryOp(operation::UnarayOperation<Ext>),
     Array(array::Array<Ext>),
     Map(map::Map<Ext>),
     Tuple(tuple::Tuple<Ext>),
     Parenthesised(parenthesized::Parenthesized<Ext>),
     External(ExternalExpr<Ext>),
 
-    BinaryOp(operation::BinaryOperation<Ext>),
     MemberAccess(member::MemberAccess<Ext>),
     Indexing(index::Indexing<Ext>),
+    BinaryOp(operation::BinaryOperation<Ext>),
     Application(application::Application<Ext>),
+}
+
+fn solo_expr<'src, Ext: External + 'src>(
+    expr: impl PonyParser<'src, Expr<Ext>> + Clone + 'src,
+) -> impl PonyParser<'src, Expr<Ext>> + Clone {
+    choice((
+        lexical::Literal::parser().map(Expr::Literal),
+        operation::UnarayOperation::parse_with(expr.clone()).map(Expr::UnaryOp),
+        lexical::Identifier::parser().map(Expr::Identifier),
+        ExternalExpr::parser().map(Expr::External),
+        array::Array::parse_with(expr.clone()).map(Expr::Array),
+        tuple::Tuple::parse_with(expr.clone()).map(Expr::Tuple),
+        map::Map::parse_with(expr.clone()).map(Expr::Map),
+        parenthesized::Parenthesized::parse_with(expr.clone()).map(Expr::Parenthesised),
+    ))
+    .boxed()
 }
 
 impl<Ext: External + 'static> ParseableCloned for Expr<Ext> {
     fn parser<'src>() -> impl PonyParser<'src, Self> + Clone {
         recursive(|expr| {
-            let solo = recursive(|_| {
-                choice((
-                    lexical::Literal::parser().map(Self::Literal),
-                    operator::UnaryOperator::parser().map(Self::Operator),
-                    array::Array::parse_with(expr.clone()).map(Self::Array),
-                    lexical::Identifier::parser().map(Self::Identifier),
-                    map::Map::parse_with(expr.clone()).map(Self::Map),
-                    tuple::Tuple::parse_with(expr.clone()).map(Self::Tuple),
-                    parenthesized::Parenthesized::parse_with(expr.clone()).map(Self::Parenthesised),
-                    ExternalExpr::parser().map(Self::External),
-                ))
-            })
-            .boxed();
+            let solo = solo_expr(expr.clone());
+            let singleton = Accessor::with(solo, expr.clone());
+            let application = application::Application::with(singleton);
 
-            choice((
-                operation::BinaryOperation::parse_with(solo.clone()).map(Self::BinaryOp),
-                application::Application::parse_with(solo.clone()).map(Self::Application),
-                index::Indexing::parse_with(solo.clone()).map(Self::Indexing),
-                member::MemberAccess::parse_with(solo.clone()).map(Self::MemberAccess),
-                solo.clone(),
-            ))
+            operation::BinaryOperation::with(application, expr)
         })
     }
 }
 
+impl<Ext: External> HasPlaceholder for Expr<Ext> {
+    type Marker = ExprMarker;
+}
+
+pub struct ExprMarker;
+
+impl Marker for ExprMarker {
+    const ID: u8 = 16;
+
+    const NAME: &'static str = "EXPRESSION";
+
+    fn new() -> Self {
+        Self
+    }
+}
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub enum SoloExpr<Ext: External> {
     Literal(lexical::Literal),
     Identifier(lexical::Identifier),
-    Operator(operator::UnaryOperator),
     Array(array::Array<Ext>),
     Map(map::Map<Ext>),
     Tuple(tuple::Tuple<Ext>),
     Parenthesised(parenthesized::Parenthesized<Ext>),
     External(ExternalExpr<Ext>),
+    UnaryOp(operation::UnarayOperation<Ext>),
 }
 
-impl<Ext: External + 'static> ParseableCloned for SoloExpr<Ext> {
-    fn parser<'src>() -> impl PonyParser<'src, Self> + Clone {
-        recursive(|expr| {
-            choice((
-                lexical::Literal::parser().map(Expr::Literal),
-                operator::UnaryOperator::parser().map(Expr::Operator),
-                array::Array::parse_with(expr.clone()).map(Expr::Array),
-                lexical::Identifier::parser().map(Expr::Identifier),
-                map::Map::parse_with(expr.clone()).map(Expr::Map),
-                tuple::Tuple::parse_with(expr.clone()).map(Expr::Tuple),
-                parenthesized::Parenthesized::parse_with(expr.clone()).map(Expr::Parenthesised),
-                ExternalExpr::parser().map(Expr::External),
-            ))
-        })
-        .try_map(|val, span| match val {
+impl<Ext: External + 'static> SoloExpr<Ext> {
+    fn parser<'src>() -> impl PonyParser<'src, SoloExpr<Ext>> + Clone {
+        solo_expr(Expr::parser()).try_map(|expr, span| match expr {
             Expr::Literal(t) => Ok(Self::Literal(t)),
             Expr::Identifier(t) => Ok(Self::Identifier(t)),
-            Expr::Operator(t) => Ok(Self::Operator(t)),
             Expr::Array(t) => Ok(Self::Array(t)),
             Expr::Map(t) => Ok(Self::Map(t)),
             Expr::Tuple(t) => Ok(Self::Tuple(t)),
             Expr::Parenthesised(t) => Ok(Self::Parenthesised(t)),
             Expr::External(t) => Ok(Self::External(t)),
+            Expr::UnaryOp(t) => Ok(Self::UnaryOp(t)),
             _ => Err(Error::SoloExprOnly(SoloExprOnly::new(span))),
         })
     }
 }
 
+impl<Ext: External + 'static> ParseableCloned for SoloExpr<Ext> {
+    fn parser<'src>() -> impl PonyParser<'src, Self> + Clone {
+        SoloExpr::parser()
+    }
+}
+
+impl<Ext: External> HasPlaceholder for SoloExpr<Ext> {
+    type Marker = SoloExprMarker;
+}
+
+pub struct SoloExprMarker;
+
+impl Marker for SoloExprMarker {
+    const ID: u8 = 17;
+
+    const NAME: &'static str = "SOLO_EXPRESSION";
+
+    fn new() -> Self {
+        Self
+    }
+}
+
 #[cfg(test)]
 pub type VExpr = Expr<super::external::TestLang>;
+#[cfg(test)]
+pub type VSoloExpr = SoloExpr<super::external::TestLang>;

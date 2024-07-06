@@ -34,11 +34,40 @@ impl<E: External + 'static> Parseable for File<E> {
     fn parser<'src>() -> impl PonyParser<'src, Self> {
         E::module()
             .then_ignore(just("---").padded())
-            .then(ponyx::Node::parser())
+            .then(ponyx::Node::parser().padded())
             .map_with(|(module, pony), ctx| File {
                 span: ctx.span(),
                 module,
                 pony,
             })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chumsky::Parser;
+
+    use crate::{
+        syntax::external::typescript::TypeScript,
+        utils::{Parseable, SourceFile},
+    };
+
+    use super::File;
+
+    #[test]
+    fn parse_ts_file() {
+        let src = r#"
+        ---
+        <Button
+            primary
+            on:click=(a.)
+        >
+            <Icon.Tree bold= /> Dontate to TeamTrees!
+        </Button>
+        "#;
+
+        let (source, _) = SourceFile::test_file(src);
+
+        let _ = File::<TypeScript>::parser().parse(source.stream());
     }
 }

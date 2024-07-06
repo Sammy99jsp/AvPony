@@ -2,12 +2,26 @@
 //! Utilities for syntax.
 //!
 
-use std::marker::PhantomData;
+use std::{collections::VecDeque, marker::PhantomData};
 
 use avpony_macros::Spanned;
-use chumsky::{primitive::just, text, IterParser, Parser};
+use chumsky::{
+    primitive::{choice, just},
+    recursive::recursive,
+    text, IterParser, Parser,
+};
 
-use crate::utils::{ParseableCloned, PonyParser, Span};
+use crate::{
+    lexical,
+    utils::{placeholder::Maybe, ParseableCloned, PonyParser, Span, Spanned},
+};
+
+use super::{
+    external::External,
+    index::{self, Indexing},
+    member::{self, MemberAccess},
+    Expr,
+};
 
 ///
 /// A sequence of a certain token type,
@@ -92,6 +106,94 @@ where
 {
     fn eq(&self, other: &Col) -> bool {
         self.inner.eq(other)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(super) enum Accessor<Ext: External> {
+    Member(Maybe<lexical::Identifier>, Span),
+    Index(Box<Maybe<super::Expr<Ext>>>, Span),
+}
+
+impl<Ext: External> Spanned for Accessor<Ext> {
+    fn span(&self) -> crate::utils::span::Span {
+        match self {
+            Accessor::Member(_, s) => s.clone(),
+            Accessor::Index(_, s) => s.clone(),
+        }
+    }
+}
+
+impl<Ext: External> Accessor<Ext> {
+    fn eat(self, receiver: Expr<Ext>) -> Expr<Ext> {
+        match self {
+            Accessor::Member(member, span) => Expr::MemberAccess(MemberAccess {
+                span: receiver.span().combine(span).unwrap(),
+                receiver: Box::new(receiver),
+                member,
+            }),
+            Accessor::Index(index, span) => Expr::Indexing(Indexing {
+                span: receiver.span().combine(span).unwrap(),
+                receiver: Box::new(receiver),
+                index,
+            }),
+        }
+    }
+}
+
+impl<Ext: External> Accessor<Ext> {
+    fn parse_with<'src>(
+        expr: impl PonyParser<'src, super::Expr<Ext>> + Clone + 'src,
+    ) -> impl PonyParser<'src, AccessorQueue<Ext>> + Clone
+    where
+        Ext: 'src,
+    {
+        recursive(|accessor| {
+            let single = choice((
+                member::MemberAccess::partial(),
+                index::Indexing::partial_with(expr.clone()),
+            ));
+
+            choice((
+                single.clone().then(accessor).map(AccessorQueue::add),
+                single.map(AccessorQueue::from),
+            ))
+        })
+    }
+
+    pub fn with<'src>(
+        solo: impl PonyParser<'src, super::Expr<Ext>> + Clone + 'src,
+        expr: impl PonyParser<'src, super::Expr<Ext>> + Clone + 'src,
+    ) -> impl PonyParser<'src, super::Expr<Ext>> + Clone
+    where
+        Ext: 'src,
+    {
+        choice((
+            solo.clone()
+                .then(Accessor::parse_with(expr.clone()))
+                .map(AccessorQueue::fold),
+            solo,
+        ))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct AccessorQueue<Ext: External>(VecDeque<Accessor<Ext>>);
+
+impl<Ext: External> AccessorQueue<Ext> {
+    pub fn add((op, mut queue): (Accessor<Ext>, Self)) -> Self {
+        queue.0.push_front(op);
+        queue
+    }
+
+    pub fn fold((ex, queue): (Expr<Ext>, Self)) -> Expr<Ext> {
+        queue.0.into_iter().fold(ex, |ex, complex| complex.eat(ex))
+    }
+}
+
+impl<Ext: External> From<Accessor<Ext>> for AccessorQueue<Ext> {
+    fn from(value: Accessor<Ext>) -> Self {
+        Self(VecDeque::from([value]))
     }
 }
 
