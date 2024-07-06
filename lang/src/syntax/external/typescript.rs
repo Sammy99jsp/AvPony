@@ -1,6 +1,6 @@
 //!
 //! ## TypeScript support.
-//! 
+//!
 use chumsky::{
     input::Marker,
     primitive::{any, custom, just},
@@ -10,7 +10,12 @@ use chumsky::{
 use swc_common::BytePos;
 use swc_ecma_parser::{StringInput, Syntax};
 
-use crate::utils::{self, error::external::typescript::ConvertTSError, Error, PonyParser};
+use crate::utils::{
+    self,
+    error::external::typescript::ConvertTSError,
+    placeholder::{HasPlaceholder, Marker as PlaceholderMarker, Maybe, Placeholder},
+    Error, PonyParser, Spanned,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeScript;
@@ -39,7 +44,7 @@ impl TypeScript {
 
     fn inline_parse_for<'src, 'parse, O: swc_common::Spanned, F>(
         func: F,
-    ) -> impl PonyParser<'src, O> + Clone
+    ) -> impl PonyParser<'src, Result<O, Error>> + Clone
     where
         F: Fn(
                 &mut swc_ecma_parser::Parser<swc_ecma_parser::lexer::Lexer<'src>>,
@@ -52,7 +57,7 @@ impl TypeScript {
             let input_left: &str = stream.slice_from(stream.offset()..);
             let start = stream.offset().raw();
             let end = start + input_left.len();
-            Self::parse_str(
+            Ok(Self::parse_str(
                 input_left,
                 utils::Span::new(span.context(), start..end),
                 func.clone(),
@@ -62,6 +67,12 @@ impl TypeScript {
                 stream.rewind(unsafe { Marker::from_raw(new_start, 0) });
                 o
             })
+            .map_err(|err| {
+                let new_start = err.span().end();
+                stream.rewind(unsafe { Marker::from_raw(new_start, 0) });
+                println!("Fast-forwarded to byte pos {new_start}");
+                err
+            }))
         })
     }
 }
@@ -82,8 +93,33 @@ impl super::External for TypeScript {
             })
     }
 
-    fn expression<'src>() -> impl PonyParser<'src, Self::Expression> + Clone {
-        Self::inline_parse_for(|parser| parser.parse_expr().map(|b| *b))
+    fn expression<'src>() -> impl PonyParser<'src, Maybe<Self::Expression>> + Clone {
+        Self::inline_parse_for(|parser| parser.parse_expr().map(|b| *b)).validate(
+            |expr, _, emitter| match expr {
+                Ok(expr) => Maybe::Present(expr),
+                Err(err) => {
+                    let ph = Maybe::Placeholder(Placeholder::at::<ExprMarker>(err.span()));
+                    emitter.emit(err);
+                    ph
+                }
+            },
+        )
+    }
+}
+
+impl HasPlaceholder for swc_ecma_ast::Expr {
+    type Marker = ExprMarker;
+}
+
+pub struct ExprMarker;
+
+impl PlaceholderMarker for ExprMarker {
+    const ID: u8 = 80;
+
+    const NAME: &'static str = "TS_EXPRESSION";
+
+    fn new() -> Self {
+        Self
     }
 }
 
@@ -91,13 +127,13 @@ impl utils::Span {
     pub fn convert_ecma(&self, ecma: swc_common::Span) -> Self {
         Self::new(
             self.context().clone(),
-            ((ecma.lo.0 as usize) + 1)..((ecma.hi.0 as usize) + 1),
+            ((ecma.lo.0 as usize) - 1)..((ecma.hi.0 as usize) - 1),
         )
     }
 }
 #[cfg(test)]
 mod tests {
-    use chumsky::{IterParser, Parser};
+    use chumsky::Parser;
 
     use crate::{syntax::external::External, utils::input::SourceFile};
 
@@ -105,12 +141,9 @@ mod tests {
 
     #[test]
     fn parse_expr() {
-        let (file, _) = SourceFile::test_file("(1 + )");
-        let res = TypeScript::expression()
-            .repeated()
-            .collect::<Vec<_>>()
-            .parse(file.stream())
-            .into_result();
+        let (file, _) = SourceFile::test_file("13+");
+        let res = TypeScript::expression().parse(file.stream()).into_result();
+        assert!(res.is_err());
     }
 
     #[test]

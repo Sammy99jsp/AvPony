@@ -2,6 +2,8 @@
 //! ## Error types.
 //!
 
+pub mod expected;
+pub mod expr;
 pub mod external;
 pub mod html_ref;
 pub mod identifier;
@@ -12,6 +14,8 @@ pub mod tag;
 use ariadne::{Color, ColorGenerator, Fmt, Label, ReportKind};
 use avpony_macros::{Errors, Spanned};
 use chumsky::util::MaybeRef;
+use expected::Expected;
+use expr::ExpectedExpr;
 use external::typescript::TSError;
 use html_ref::*;
 use identifier::*;
@@ -37,8 +41,10 @@ pub enum Error {
     InvalidAsciiCode(InvalidAsciiCode),
     InvalidEscapeSequence(InvalidEscapeSequence),
     SoloExprOnly(SoloExprOnly),
+    ExpectedExpr(ExpectedExpr),
     InvalidEntityName(InvalidEntityName),
     UnclosedTag(UnclosedTag),
+    Expected(Expected),
 }
 
 impl<'src> chumsky::error::Error<'src, PonyInput<'src>> for Error {

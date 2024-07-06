@@ -2,7 +2,7 @@
 //! TypeScript Errors
 //!
 
-use ariadne::{Report, ReportKind};
+use ariadne::{Label, Report, ReportKind};
 use avpony_macros::ErrorType;
 use swc_common::errors::{EmitterWriter, Handler};
 
@@ -20,7 +20,13 @@ pub struct TSError {
 
 impl ErrorI for TSError {
     fn to_report(self) -> Report<'static, Span> {
-        todo!()
+        // TODO: Finish this.
+        self.span
+            .clone()
+            .build_report(self.kind)
+            .with_code(self.code)
+            .with_label(Label::new(self.span).with_message("TS ERROR HERE!"))
+            .finish()
     }
 }
 

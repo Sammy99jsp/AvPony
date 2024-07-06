@@ -25,7 +25,7 @@ impl super::ErrorI for InvalidEntityName {
         let color = colors.next();
         self.span
             .clone()
-            .build_report(ReportKind::Warning)
+            .build_report(ReportKind::Error)
             .with_code("X000")
             .with_message("Invalid HTML Entity code.")
             .with_label(

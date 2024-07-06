@@ -13,15 +13,14 @@
 //!
 
 use avpony_macros::Spanned;
-use chumsky::{
-    primitive::just,
-    text::{self},
-    Parser,
-};
+use chumsky::{primitive::just, text, Parser};
 
 use crate::{
     lexical::{identifier::Identifier, punctuation},
-    utils::{ParseableCloned, PonyParser, Span},
+    utils::{
+        placeholder::{Maybe, MaybeParser},
+        ParseableCloned, PonyParser, Span,
+    },
 };
 
 use super::{external::External, utils::Punctuated};
@@ -57,11 +56,11 @@ impl<Ext: External> Field<Ext> {
         expr: impl PonyParser<'src, super::Expr<Ext>> + Clone,
     ) -> impl PonyParser<'src, Self> + Clone {
         just(".")
-            .ignore_then(Identifier::parser().then_ignore(text::whitespace()))
+            .ignore_then(Identifier::parser().maybe().then_ignore(text::whitespace()))
             .then(
                 just("=")
                     .padded_by(text::whitespace())
-                    .ignore_then(expr.map(Box::new).padded_by(text::whitespace()))
+                    .ignore_then(expr.maybe().map(Box::new).padded())
                     .or_not(),
             )
             .map_with(|(key, value), ctx| {
@@ -84,14 +83,14 @@ impl<Ext: External> Field<Ext> {
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct FieldKey {
     span: Span,
-    ident: Identifier,
+    ident: Maybe<Identifier>,
 }
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub struct FieldKeyValue<Ext: External> {
     span: Span,
-    key: Identifier,
-    value: Box<super::Expr<Ext>>,
+    key: Maybe<Identifier>,
+    value: Box<Maybe<super::Expr<Ext>>>,
 }
 
 #[cfg(test)]
@@ -101,7 +100,7 @@ mod tests {
     use crate::{
         lexical::Literal,
         syntax::{utils::Punctuated, VExpr as Expr},
-        utils::{Parseable, SourceFile},
+        utils::{placeholder::Maybe, Parseable, SourceFile},
     };
 
     #[test]
@@ -112,8 +111,8 @@ mod tests {
         assert!(matches!(res.into_result(),
             Ok(Expr::Map(super::Map { fields: Punctuated { inner, .. }, ..}))
                 if matches!(inner.as_slice(), [
-                    super::Field::Key(super::FieldKey { ident, ..}),
-                    super::Field::KeyValue(super::FieldKeyValue { key, value: box Expr::Literal(Literal::String(_)), ..})
+                    super::Field::Key(super::FieldKey { ident: Maybe::Present(ident), ..}),
+                    super::Field::KeyValue(super::FieldKeyValue { key: Maybe::Present(key), value: box Maybe::Present(Expr::Literal(Literal::String(_))), ..})
                 ]
                     if ident == "a" && key == "if_"
         )));
@@ -124,11 +123,11 @@ mod tests {
         Ok(Expr::Map(super::Map { fields: Punctuated { inner, .. }, ..}))
             if matches!(inner.as_slice(), [
                 super::Field::KeyValue(super::FieldKeyValue {
-                    key,
-                    value: box Expr::Map(super::Map {
+                    key: Maybe::Present(key),
+                    value: box Maybe::Present(Expr::Map(super::Map {
                         fields: Punctuated { inner, ..},
                         ..
-                    }),
+                    })),
                     ..
                 })
             ]
