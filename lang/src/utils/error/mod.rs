@@ -2,6 +2,7 @@
 //! ## Error types.
 //!
 
+pub mod blocks;
 pub mod expected;
 pub mod expr;
 pub mod external;
@@ -13,6 +14,7 @@ pub mod tag;
 
 use ariadne::{Color, ColorGenerator, Fmt, Label, ReportKind};
 use avpony_macros::{Errors, Spanned};
+use blocks::UnreachableBranch;
 use chumsky::util::MaybeRef;
 use expected::Expected;
 use expr::ExpectedExpr;
@@ -45,6 +47,7 @@ pub enum Error {
     InvalidEntityName(InvalidEntityName),
     UnclosedTag(UnclosedTag),
     Expected(Expected),
+    UnreachableBranch(UnreachableBranch),
 }
 
 impl<'src> chumsky::error::Error<'src, PonyInput<'src>> for Error {

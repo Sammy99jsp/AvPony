@@ -49,7 +49,7 @@ mod tests {
 
     use crate::{
         syntax::external::typescript::TypeScript,
-        utils::{Parseable, SourceFile},
+        utils::{ErrorI, Parseable, SourceFile},
     };
 
     use super::File;
@@ -57,17 +57,23 @@ mod tests {
     #[test]
     fn parse_ts_file() {
         let src = r#"
+        let i = 0;
         ---
         <Button
             primary
-            on:click=(a.)
+            on:click={() => i++}
         >
-            <Icon.Tree bold= /> Dontate to TeamTrees!
+            Clicked {i} times!
         </Button>
         "#;
 
-        let (source, _) = SourceFile::test_file(src);
+        let (source, cache) = SourceFile::test_file(src);
 
-        let _ = File::<TypeScript>::parser().parse(source.stream());
+        let res = File::<TypeScript>::parser().parse(source.stream());
+
+        let _ = res
+            .into_errors()
+            .into_iter()
+            .try_for_each(|err| err.to_report().eprint(cache.clone()));
     }
 }

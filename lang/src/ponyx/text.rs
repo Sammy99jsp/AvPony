@@ -1,7 +1,7 @@
 //!
 //! ## Text node.
 //!
-//! Literally anything except any of `{}<>`.
+//! Literally anything except any of `{}<>&`.
 //!
 
 use avpony_macros::Spanned;
@@ -21,7 +21,7 @@ pub struct Text {
 impl ParseableCloned for Text {
     fn parser<'src>() -> impl PonyParser<'src, Self> + Clone {
         any()
-            .and_is(one_of("{}<>").not())
+            .and_is(one_of("{}<>&").not())
             .repeated()
             .at_least(1)
             .collect()

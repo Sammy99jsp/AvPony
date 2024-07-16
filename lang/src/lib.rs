@@ -1,4 +1,4 @@
-#![feature(iter_intersperse, box_patterns, is_ascii_octdigit)]
+#![feature(iter_intersperse, box_patterns, is_ascii_octdigit, slice_split_once, assert_matches)]
 //!
 //! # AvPony
 //! > What is AvPony?

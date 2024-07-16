@@ -3,7 +3,13 @@
 //!
 
 use avpony_macros::Spanned;
-use chumsky::{primitive::choice, recursive::recursive, Parser};
+use blocks::LogicBlock;
+use chumsky::{
+    primitive::{choice, just},
+    recursive::recursive,
+    Parser,
+};
+use comment::Comment;
 use entity::Entity;
 use tag::Tag;
 use text::Text;
@@ -16,6 +22,8 @@ use crate::{
     utils::{ParseableCloned, PonyParser},
 };
 
+pub mod blocks;
+pub mod comment;
 pub mod entity;
 pub mod tag;
 pub mod text;
@@ -23,19 +31,27 @@ pub mod text;
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub enum Node<Ext: External> {
     Text(Text),
+    Mustache(ExternalExpr<Ext>),
     Entity(Entity),
     Tag(Tag<Ext>),
-    Mustache(ExternalExpr<Ext>),
+    Block(LogicBlock<Ext>),
+    Comment(Comment),
 }
 
 impl<Ext: External + 'static> ParseableCloned for Node<Ext> {
     fn parser<'src>() -> impl PonyParser<'src, Self> + Clone {
         recursive(|node| {
             choice((
-                Text::parser().map(Self::Text),
                 Entity::parser().map(Self::Entity),
+                Text::parser().map(Self::Text),
                 Tag::parser_with(node.clone()).map(Self::Tag),
-                ExternalExpr::parser().map(Self::Mustache),
+                LogicBlock::parse_with(node.clone()).map(Self::Block),
+                Comment::parser().map(Self::Comment),
+                choice((just("{/"), just("{:")))
+                    .not()
+                    .rewind()
+                    .ignore_then(ExternalExpr::parser())
+                    .map(Self::Mustache),
             ))
         })
     }
