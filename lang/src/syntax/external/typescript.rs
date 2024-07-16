@@ -1,6 +1,7 @@
 //!
 //! ## TypeScript support.
 //!
+use avpony_macros::Spanned;
 use chumsky::{
     input::Marker,
     primitive::{any, custom, just},
@@ -8,6 +9,7 @@ use chumsky::{
     IterParser, Parser,
 };
 use swc_common::BytePos;
+use swc_ecma_ast::VarDeclKind;
 use swc_ecma_parser::{StringInput, Syntax};
 
 use crate::utils::{
@@ -72,6 +74,30 @@ impl TypeScript {
             }))
         })
     }
+
+    fn variable_declaration<'src>(
+    ) -> impl PonyParser<'src, (Maybe<swc_ecma_ast::Pat>, Maybe<swc_ecma_ast::Expr>)> + Clone {
+        Self::inline_parse_for(|parser| parser.parse_pat())
+            .validate(|expr, _, emitter| match expr {
+                Ok(expr) => Maybe::Present(expr),
+                Err(err) => {
+                    let ph = Maybe::Placeholder(Placeholder::at::<ExprMarker>(err.span()));
+                    emitter.emit(err);
+                    ph
+                }
+            })
+            .padded()
+            .then_ignore(just("=").padded())
+            .then(<TypeScript as super::External>::expression())
+    }
+}
+
+#[derive(Debug, Clone, Spanned, PartialEq)]
+pub struct VarDecl {
+    span: utils::Span,
+    ty: swc_ecma_ast::VarDeclKind,
+    pat: Maybe<swc_ecma_ast::Pat>,
+    init: Maybe<swc_ecma_ast::Expr>,
 }
 
 impl super::External for TypeScript {
@@ -79,6 +105,8 @@ impl super::External for TypeScript {
 
     type Module = swc_ecma_ast::Module;
     type Expression = swc_ecma_ast::Expr;
+    type LetDeclaration = VarDecl;
+    type ConstDeclaration = VarDecl;
 
     fn module<'src>() -> impl PonyParser<'src, Self::Module> {
         any()
@@ -102,6 +130,28 @@ impl super::External for TypeScript {
             },
         )
     }
+
+    fn let_declaration<'src>() -> impl PonyParser<'src, Self::LetDeclaration> + Clone {
+        just("let ")
+            .ignore_then(Self::variable_declaration().padded())
+            .map_with(|(pat, init), ctx| VarDecl {
+                span: ctx.span(),
+                ty: VarDeclKind::Let,
+                pat,
+                init,
+            })
+    }
+
+    fn const_declaration<'src>() -> impl PonyParser<'src, Self::ConstDeclaration> + Clone {
+        just("const ")
+            .ignore_then(Self::variable_declaration().padded())
+            .map_with(|(pat, init), ctx| VarDecl {
+                span: ctx.span(),
+                ty: VarDeclKind::Let,
+                pat,
+                init,
+            })
+    }
 }
 
 impl HasPlaceholder for swc_ecma_ast::Expr {
@@ -114,6 +164,22 @@ impl PlaceholderMarker for ExprMarker {
     const ID: u8 = 80;
 
     const NAME: &'static str = "TS_EXPRESSION";
+
+    fn new() -> Self {
+        Self
+    }
+}
+
+impl HasPlaceholder for swc_ecma_ast::Pat {
+    type Marker = PatMarker;
+}
+
+pub struct PatMarker;
+
+impl PlaceholderMarker for PatMarker {
+    const ID: u8 = 81;
+
+    const NAME: &'static str = "TS_PATTERN";
 
     fn new() -> Self {
         Self

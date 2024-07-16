@@ -21,8 +21,7 @@ use crate::utils::Empty;
 use crate::{
     ponyx::blocks,
     utils::{
-        placeholder::{HasPlaceholder, Maybe},
-        ParseableCloned, PonyParser, Span,
+        self, placeholder::{HasPlaceholder, Maybe}, ParseableCloned, PonyParser, Span
     },
 };
 
@@ -40,8 +39,13 @@ pub trait External: PartialEq + Debug + Clone {
     type Module: PartialEq + Clone + Debug;
     type Expression: PartialEq + Clone + Debug + HasPlaceholder;
 
+    type LetDeclaration: utils::Spanned + PartialEq + Clone + Debug;
+    type ConstDeclaration: utils::Spanned + PartialEq + Clone + Debug;
+
     fn module<'src>() -> impl PonyParser<'src, Self::Module>;
     fn expression<'src>() -> impl PonyParser<'src, Maybe<Self::Expression>> + Clone;
+    fn let_declaration<'src>() -> impl PonyParser<'src, Self::LetDeclaration> + Clone;
+    fn const_declaration<'src>() -> impl PonyParser<'src, Self::ConstDeclaration> + Clone;
 }
 
 ///
@@ -94,8 +98,9 @@ impl External for TestLang {
     const ID: &'static str = "TESTING LANGUAGE";
 
     type Module = Empty;
-
     type Expression = Empty;
+    type LetDeclaration = Empty;
+    type ConstDeclaration = Empty;
 
     fn module<'src>() -> impl PonyParser<'src, Self::Module> {
         Empty::parser()
@@ -103,5 +108,13 @@ impl External for TestLang {
 
     fn expression<'src>() -> impl PonyParser<'src, Maybe<Self::Expression>> + Clone {
         Empty::parser().map(Maybe::Present)
+    }
+
+    fn let_declaration<'src>() -> impl PonyParser<'src, Self::LetDeclaration> + Clone {
+        Empty::parser()
+    }
+
+    fn const_declaration<'src>() -> impl PonyParser<'src, Self::ConstDeclaration> + Clone {
+        Empty::parser()
     }
 }

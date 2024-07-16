@@ -11,6 +11,7 @@ use chumsky::{
 };
 use comment::Comment;
 use entity::Entity;
+use statement::AtStatement;
 use tag::Tag;
 use text::Text;
 
@@ -25,17 +26,19 @@ use crate::{
 pub mod blocks;
 pub mod comment;
 pub mod entity;
+pub mod statement;
 pub mod tag;
 pub mod text;
 
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub enum Node<Ext: External> {
-    Text(Text),
-    Mustache(ExternalExpr<Ext>),
-    Entity(Entity),
-    Tag(Tag<Ext>),
-    Block(LogicBlock<Ext>),
     Comment(Comment),
+    Text(Text),
+    Entity(Entity),
+    Mustache(ExternalExpr<Ext>),
+    Statement(AtStatement<Ext>),
+    Block(LogicBlock<Ext>),
+    Tag(Tag<Ext>),
 }
 
 impl<Ext: External + 'static> ParseableCloned for Node<Ext> {
@@ -45,6 +48,7 @@ impl<Ext: External + 'static> ParseableCloned for Node<Ext> {
                 Entity::parser().map(Self::Entity),
                 Text::parser().map(Self::Text),
                 Tag::parser_with(node.clone()).map(Self::Tag),
+                AtStatement::parser().map(Self::Statement),
                 LogicBlock::parse_with(node.clone()).map(Self::Block),
                 Comment::parser().map(Self::Comment),
                 choice((just("{/"), just("{:")))
