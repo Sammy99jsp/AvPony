@@ -45,7 +45,7 @@ impl PartialEq<str> for TagName {
     fn eq(&self, other: &str) -> bool {
         self.path
             .iter()
-            .zip(other.split(":"))
+            .zip(other.split("."))
             .all(|(ident, p)| ident == p)
     }
 }

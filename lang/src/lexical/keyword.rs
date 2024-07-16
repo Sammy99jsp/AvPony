@@ -26,6 +26,9 @@ mod kw {
     pub struct Then;
 
     #[Keyword]
+    pub struct Catch;
+
+    #[Keyword]
     pub struct Match;
 
     #[Keyword]
@@ -39,6 +42,9 @@ mod kw {
 
     #[Keyword]
     pub struct Key;
+
+    #[Keyword]
+    pub struct By;
 
     #[Keyword]
     pub struct Debug;

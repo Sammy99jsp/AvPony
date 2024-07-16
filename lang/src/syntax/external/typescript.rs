@@ -62,16 +62,13 @@ impl TypeScript {
                 utils::Span::new(span.context(), start..end),
                 func.clone(),
             )
-            .map(|o| {
+            .inspect(|o| {
                 let new_start = o.span().hi.0 as usize;
                 stream.rewind(unsafe { Marker::from_raw(new_start, 0) });
-                o
             })
-            .map_err(|err| {
+            .inspect_err(|err| {
                 let new_start = err.span().end();
                 stream.rewind(unsafe { Marker::from_raw(new_start, 0) });
-                println!("Fast-forwarded to byte pos {new_start}");
-                err
             }))
         })
     }

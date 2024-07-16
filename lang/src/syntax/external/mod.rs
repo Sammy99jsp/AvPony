@@ -10,14 +10,20 @@
 use std::fmt::Debug;
 
 use avpony_macros::Spanned;
-use chumsky::{primitive::just, Parser};
+use chumsky::{
+    primitive::{just, one_of},
+    text, Parser,
+};
 
 #[cfg(test)]
 use crate::utils::Empty;
 
-use crate::utils::{
-    placeholder::{HasPlaceholder, Maybe},
-    ParseableCloned, PonyParser, Span,
+use crate::{
+    ponyx::blocks,
+    utils::{
+        placeholder::{HasPlaceholder, Maybe},
+        ParseableCloned, PonyParser, Span,
+    },
 };
 
 pub mod typescript;
@@ -50,7 +56,16 @@ pub struct ExternalExpr<Ext: External> {
 
 impl<Ext: External> ParseableCloned for ExternalExpr<Ext> {
     fn parser<'src>() -> impl PonyParser<'src, Self> + Clone {
+        let keywords = blocks::KEYWORDS
+            .iter()
+            .copied()
+            .map(text::keyword)
+            .map(|a| a.boxed())
+            .reduce(|a, b| a.or(b).boxed())
+            .unwrap();
+
         Ext::expression()
+            .and_is(one_of("#/").then(keywords).not())
             .delimited_by(just("{"), just("}"))
             .map_with(|expr, ctx| Self {
                 span: ctx.span(),
